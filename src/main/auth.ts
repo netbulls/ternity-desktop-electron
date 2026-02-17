@@ -288,13 +288,14 @@ async function exchangeCode(
   code: string,
   codeVerifier: string,
 ): Promise<TokenSet> {
+  // Step 1: Exchange auth code WITHOUT resource — this returns the refresh token.
+  // Logto only issues refresh tokens for non-resource-specific token requests.
   const body = new URLSearchParams({
     grant_type: 'authorization_code',
     client_id: appId,
     code,
     code_verifier: codeVerifier,
     redirect_uri: LOGTO_REDIRECT_URI,
-    resource: LOGTO_API_RESOURCE,
   });
 
   const res = await fetch(tokenEndpoint, {
@@ -308,18 +309,35 @@ async function exchangeCode(
     throw new Error(`Token exchange failed: ${res.status} ${text}`);
   }
 
-  const data = (await res.json()) as {
+  const initial = (await res.json()) as {
     access_token: string;
     refresh_token?: string;
     id_token?: string;
     expires_in: number;
   };
 
+  log.info('Initial token exchange — has refresh_token:', !!initial.refresh_token, 'expires_in:', initial.expires_in);
+
+  if (!initial.refresh_token) {
+    // Fallback: return opaque token (will work for userinfo but not API calls)
+    log.warn('No refresh token received — API calls will fail when this token expires');
+    return {
+      access_token: initial.access_token,
+      refresh_token: initial.refresh_token,
+      id_token: initial.id_token,
+      expires_at: Math.floor(Date.now() / 1000) + initial.expires_in,
+    };
+  }
+
+  // Step 2: Use refresh token to get a resource-specific JWT access token for the API.
+  const apiTokens = await refreshTokens(tokenEndpoint, appId, initial.refresh_token);
+  log.info('API token obtained via refresh — expires_in:', apiTokens.expires_at - Math.floor(Date.now() / 1000));
+
   return {
-    access_token: data.access_token,
-    refresh_token: data.refresh_token,
-    id_token: data.id_token,
-    expires_at: Math.floor(Date.now() / 1000) + data.expires_in,
+    access_token: apiTokens.access_token,
+    refresh_token: apiTokens.refresh_token ?? initial.refresh_token,
+    id_token: initial.id_token ?? apiTokens.id_token,
+    expires_at: apiTokens.expires_at,
   };
 }
 
@@ -402,7 +420,7 @@ export async function signIn(envId: EnvironmentId): Promise<SignInResult> {
         code_challenge: codeChallenge,
         code_challenge_method: 'S256',
         resource: LOGTO_API_RESOURCE,
-        prompt: 'login',
+        prompt: 'consent',
       });
 
       const authUrl = `${oidc.authorization_endpoint}?${authParams.toString()}`;

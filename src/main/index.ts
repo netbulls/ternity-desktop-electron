@@ -33,6 +33,7 @@ function createPopup(): BrowserWindow {
     hasShadow: true,
     backgroundColor: '#0a0a0a',
     visibleOnAllWorkspaces: true,
+    type: process.platform === 'darwin' ? 'panel' : undefined,
     webPreferences: {
       preload: join(__dirname, '../preload/index.cjs'),
       sandbox: true,
@@ -45,12 +46,10 @@ function createPopup(): BrowserWindow {
     win.loadFile(join(__dirname, '../renderer/index.html'));
   }
 
-  // Hide on blur (click outside) — disabled in dev for easier testing
-  if (!is.dev) {
-    win.on('blur', () => {
-      win.hide();
-    });
-  }
+  // Hide on blur (click outside) — standard tray app behavior
+  win.on('blur', () => {
+    win.hide();
+  });
 
   // Esc to close
   win.webContents.on('before-input-event', (_event, input) => {
@@ -92,9 +91,13 @@ function positionPopup(): void {
 function togglePopup(): void {
   if (!popup) return;
 
-  if (popup.isVisible() && popup.isFocused()) {
+  if (popup.isVisible()) {
     popup.hide();
   } else {
+    // Move window to the current Space and set as popup-level so macOS
+    // correctly routes blur events even in fullscreen Spaces.
+    popup.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+    popup.setAlwaysOnTop(true, 'pop-up-menu');
     positionPopup();
     popup.show();
     popup.focus();
