@@ -7,4 +7,9 @@ dist/
 *.deb
 .DS_Store
 .env.local
+.env.signing
+*.p12
+*.cer
+*.csr
+*.key
 .playwright-mcp/

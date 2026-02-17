@@ -129,6 +129,28 @@ hdiutil convert "${TEMP_DMG}.sparseimage" \
 # Clean up
 rm -f "${TEMP_DMG}.sparseimage"
 
+# --- Sign the DMG ---
+SIGNING_IDENTITY="Developer ID Application: NETBULLS S C (9374FZ3B8X)"
+echo "  Signing DMG..."
+codesign --sign "$SIGNING_IDENTITY" "$DMG_PATH"
+codesign --verify --verbose "$DMG_PATH"
+echo "  DMG signed"
+
+# --- Notarize the DMG (if credentials available) ---
+if [ -n "${APPLE_ID:-}" ] && [ -n "${APPLE_APP_SPECIFIC_PASSWORD:-}" ] && [ -n "${APPLE_TEAM_ID:-}" ]; then
+  echo "  Submitting DMG for notarization..."
+  xcrun notarytool submit "$DMG_PATH" \
+    --apple-id "$APPLE_ID" \
+    --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+    --team-id "$APPLE_TEAM_ID" \
+    --wait
+  echo "  Stapling notarization ticket..."
+  xcrun stapler staple "$DMG_PATH"
+  echo "  DMG notarized and stapled"
+else
+  echo "  Skipping notarization (APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD / APPLE_TEAM_ID not set)"
+fi
+
 echo ""
 echo "DMG created: dist/$DMG_NAME"
 echo "  Size: $(du -sh "$DMG_PATH" | cut -f1)"

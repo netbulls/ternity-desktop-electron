@@ -1,4 +1,4 @@
-appId: com.netbulls.ternity-desktop
+appId: io.netbulls.ternity.desktop.electron
 productName: Ternity
 directories:
   buildResources: resources
@@ -14,5 +14,10 @@ mac:
   category: public.app-category.productivity
   icon: resources/icon.icns
   target: dir
-  identity: null
-  forceCodeSigning: false
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.inherit.plist
+  # Notarization: auto-triggers when APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD,
+  # and APPLE_TEAM_ID env vars are set. Run: source .env.signing && pnpm build:mac
+  notarize: true
