@@ -1,0 +1,18 @@
+import { contextBridge, ipcRenderer } from 'electron';
+import { electronAPI } from '@electron-toolkit/preload';
+
+contextBridge.exposeInMainWorld('electronAPI', {
+  platform: process.platform,
+  versions: electronAPI.process.versions,
+  resizeWindow: (width: number, height: number) => {
+    ipcRenderer.send('resize-window', width, height);
+  },
+  getEnvironment: () => ipcRenderer.invoke('auth:get-env'),
+  setEnvironment: (env: string) => ipcRenderer.invoke('auth:set-env', env),
+  openExternal: (url: string) => ipcRenderer.invoke('auth:open-external', url),
+  signIn: (envId: string) => ipcRenderer.invoke('auth:sign-in', envId),
+  signOut: (envId: string) => ipcRenderer.invoke('auth:sign-out', envId),
+  getAuthState: (envId: string) => ipcRenderer.invoke('auth:get-auth-state', envId),
+  getAccessToken: (envId: string) => ipcRenderer.invoke('auth:get-access-token', envId),
+  cancelSignIn: () => ipcRenderer.invoke('auth:cancel-sign-in'),
+});

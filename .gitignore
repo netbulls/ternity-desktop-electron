@@ -1,0 +1,10 @@
+node_modules/
+out/
+dist/
+*.dmg
+*.exe
+*.AppImage
+*.deb
+.DS_Store
+.env.local
+.playwright-mcp/

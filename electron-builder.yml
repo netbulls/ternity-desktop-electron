@@ -1,0 +1,16 @@
+appId: com.netbulls.ternity-desktop
+productName: Ternity
+directories:
+  buildResources: resources
+  output: dist
+files:
+  - out/**/*
+mac:
+  category: public.app-category.productivity
+  icon: resources/icon.icns
+  target: dmg
+  identity: null
+  forceCodeSigning: false
+dmg:
+  sign: false
+  title: Ternity Desktop

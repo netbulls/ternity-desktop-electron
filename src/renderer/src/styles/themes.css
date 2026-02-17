@@ -1,0 +1,378 @@
+/*
+ * Ternity — Theme Definitions (shadcn/ui compatible)
+ *
+ * All themes map to shadcn's CSS variable convention.
+ * Custom Ternity tokens are prefixed with --t-*
+ *
+ * Usage: <html class="dark" data-theme="ternity-dark">
+ */
+
+/* ================================================================
+   1. TERNITY DARK (default)
+   ================================================================ */
+[data-theme="ternity-dark"] {
+  color-scheme: dark;
+
+  /* shadcn core */
+  --background: 0 0% 4%;
+  --foreground: 0 0% 100%;
+  --card: 0 0% 7%;
+  --card-foreground: 0 0% 100%;
+  --popover: 0 0% 7%;
+  --popover-foreground: 0 0% 100%;
+  --primary: 168 100% 42%;
+  --primary-foreground: 0 0% 4%;
+  --secondary: 0 0% 9%;
+  --secondary-foreground: 0 0% 100%;
+  --muted: 0 0% 8%;
+  --muted-foreground: 0 0% 60%;
+  --accent: 0 0% 9%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 355 100% 64%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 0 0% 12%;
+  --input: 0 0% 12%;
+  --ring: 168 100% 42%;
+  --radius: 0.5rem;
+
+  /* shadcn sidebar */
+  --sidebar-background: 0 0% 5%;
+  --sidebar-foreground: 0 0% 100%;
+  --sidebar-primary: 168 100% 42%;
+  --sidebar-primary-foreground: 0 0% 4%;
+  --sidebar-accent: 168 100% 42% / 0.1;
+  --sidebar-accent-foreground: 168 100% 42%;
+  --sidebar-border: 0 0% 10%;
+  --sidebar-ring: 168 100% 42%;
+
+  /* shadcn chart colors */
+  --chart-1: 168 100% 42%;
+  --chart-2: 236 100% 77%;
+  --chart-3: 35 100% 64%;
+  --chart-4: 355 100% 64%;
+  --chart-5: 280 60% 65%;
+
+  /* ternity custom tokens */
+  --t-surface: 0 0% 7%;
+  --t-elevated: 0 0% 9%;
+  --t-border-subtle: 0 0% 8%;
+  --t-text-muted: 0 0% 30%;
+  --t-timer-bg: 168 100% 42% / 0.08;
+  --t-timer-border: 168 100% 42% / 0.2;
+  --t-stop: 355 100% 64%;
+  --t-label-1-bg: 168 100% 42% / 0.12;
+  --t-label-1-text: 168 100% 42%;
+  --t-label-2-bg: 236 100% 77% / 0.12;
+  --t-label-2-text: 236 100% 77%;
+  --t-stat-bg: 0 0% 8%;
+  --t-avatar-bg: 168 100% 42%;
+  --t-avatar-text: 0 0% 4%;
+  --t-project-1: 168 100% 42%;
+  --t-project-2: 236 100% 77%;
+  --t-project-3: 35 100% 64%;
+}
+
+/* ================================================================
+   2. TERNITY LIGHT
+   ================================================================ */
+[data-theme="ternity-light"] {
+  color-scheme: light;
+
+  --background: 220 20% 97%;
+  --foreground: 0 0% 10%;
+  --card: 0 0% 100%;
+  --card-foreground: 0 0% 10%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 0 0% 10%;
+  --primary: 168 100% 36%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 220 11% 95%;
+  --secondary-foreground: 0 0% 10%;
+  --muted: 220 11% 95%;
+  --muted-foreground: 0 0% 45%;
+  --accent: 220 11% 95%;
+  --accent-foreground: 0 0% 10%;
+  --destructive: 355 100% 64%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 216 12% 92%;
+  --input: 216 12% 92%;
+  --ring: 168 100% 36%;
+  --radius: 0.5rem;
+
+  --sidebar-background: 0 0% 100%;
+  --sidebar-foreground: 0 0% 10%;
+  --sidebar-primary: 168 100% 36%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 168 100% 36% / 0.08;
+  --sidebar-accent-foreground: 168 100% 36%;
+  --sidebar-border: 216 12% 92%;
+  --sidebar-ring: 168 100% 36%;
+
+  --chart-1: 168 100% 36%;
+  --chart-2: 236 68% 62%;
+  --chart-3: 30 79% 57%;
+  --chart-4: 355 100% 64%;
+  --chart-5: 280 50% 55%;
+
+  --t-surface: 0 0% 100%;
+  --t-elevated: 0 0% 100%;
+  --t-border-subtle: 220 11% 95%;
+  --t-text-muted: 0 0% 70%;
+  --t-timer-bg: 168 100% 36% / 0.06;
+  --t-timer-border: 168 100% 36% / 0.2;
+  --t-stop: 355 100% 64%;
+  --t-label-1-bg: 168 100% 36% / 0.1;
+  --t-label-1-text: 168 100% 27%;
+  --t-label-2-bg: 236 68% 62% / 0.08;
+  --t-label-2-text: 236 68% 62%;
+  --t-stat-bg: 0 0% 100%;
+  --t-avatar-bg: 168 100% 36%;
+  --t-avatar-text: 0 0% 100%;
+  --t-project-1: 168 100% 36%;
+  --t-project-2: 236 68% 62%;
+  --t-project-3: 30 79% 57%;
+}
+
+/* ================================================================
+   3. MIDNIGHT
+   ================================================================ */
+[data-theme="midnight"] {
+  color-scheme: dark;
+
+  --background: 218 31% 7%;
+  --foreground: 214 32% 91%;
+  --card: 221 31% 10%;
+  --card-foreground: 214 32% 91%;
+  --popover: 221 31% 10%;
+  --popover-foreground: 214 32% 91%;
+  --primary: 168 100% 42%;
+  --primary-foreground: 218 31% 7%;
+  --secondary: 218 31% 14%;
+  --secondary-foreground: 214 32% 91%;
+  --muted: 219 31% 13%;
+  --muted-foreground: 214 32% 50%;
+  --accent: 218 31% 14%;
+  --accent-foreground: 214 32% 91%;
+  --destructive: 355 100% 64%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 218 29% 16%;
+  --input: 218 29% 16%;
+  --ring: 168 100% 42%;
+  --radius: 0.5rem;
+
+  --sidebar-background: 219 33% 8%;
+  --sidebar-foreground: 214 32% 91%;
+  --sidebar-primary: 168 100% 42%;
+  --sidebar-primary-foreground: 218 31% 7%;
+  --sidebar-accent: 168 100% 42% / 0.1;
+  --sidebar-accent-foreground: 168 100% 42%;
+  --sidebar-border: 222 29% 15%;
+  --sidebar-ring: 168 100% 42%;
+
+  --chart-1: 168 100% 42%;
+  --chart-2: 236 100% 80%;
+  --chart-3: 32 100% 73%;
+  --chart-4: 355 100% 64%;
+  --chart-5: 280 60% 65%;
+
+  --t-surface: 221 31% 10%;
+  --t-elevated: 218 31% 14%;
+  --t-border-subtle: 219 31% 13%;
+  --t-text-muted: 214 32% 30%;
+  --t-timer-bg: 168 100% 42% / 0.07;
+  --t-timer-border: 168 100% 42% / 0.18;
+  --t-stop: 355 100% 64%;
+  --t-label-1-bg: 168 100% 42% / 0.1;
+  --t-label-1-text: 168 100% 42%;
+  --t-label-2-bg: 236 100% 80% / 0.1;
+  --t-label-2-text: 236 100% 80%;
+  --t-stat-bg: 219 33% 12%;
+  --t-avatar-bg: 168 100% 42%;
+  --t-avatar-text: 218 31% 7%;
+  --t-project-1: 168 100% 42%;
+  --t-project-2: 236 100% 80%;
+  --t-project-3: 32 100% 73%;
+}
+
+/* ================================================================
+   4. WARM SAND
+   ================================================================ */
+[data-theme="warm-sand"] {
+  color-scheme: light;
+
+  --background: 37 29% 95%;
+  --foreground: 30 16% 15%;
+  --card: 36 33% 97%;
+  --card-foreground: 30 16% 15%;
+  --popover: 36 33% 97%;
+  --popover-foreground: 30 16% 15%;
+  --primary: 168 100% 36%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 33 23% 91%;
+  --secondary-foreground: 30 16% 15%;
+  --muted: 33 23% 91%;
+  --muted-foreground: 30 16% 45%;
+  --accent: 33 23% 91%;
+  --accent-foreground: 30 16% 15%;
+  --destructive: 7 72% 56%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 34 22% 87%;
+  --input: 34 22% 87%;
+  --ring: 168 100% 36%;
+  --radius: 0.5rem;
+
+  --sidebar-background: 36 33% 97%;
+  --sidebar-foreground: 30 16% 15%;
+  --sidebar-primary: 168 100% 36%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 168 100% 36% / 0.08;
+  --sidebar-accent-foreground: 168 100% 27%;
+  --sidebar-border: 34 22% 87%;
+  --sidebar-ring: 168 100% 36%;
+
+  --chart-1: 168 100% 36%;
+  --chart-2: 252 29% 50%;
+  --chart-3: 30 64% 53%;
+  --chart-4: 7 72% 56%;
+  --chart-5: 280 40% 50%;
+
+  --t-surface: 36 33% 97%;
+  --t-elevated: 0 0% 100%;
+  --t-border-subtle: 33 23% 91%;
+  --t-text-muted: 30 16% 70%;
+  --t-timer-bg: 168 100% 36% / 0.06;
+  --t-timer-border: 168 100% 36% / 0.15;
+  --t-stop: 7 72% 56%;
+  --t-label-1-bg: 168 100% 36% / 0.08;
+  --t-label-1-text: 168 100% 27%;
+  --t-label-2-bg: 252 29% 50% / 0.08;
+  --t-label-2-text: 252 29% 50%;
+  --t-stat-bg: 36 33% 97%;
+  --t-avatar-bg: 168 100% 36%;
+  --t-avatar-text: 0 0% 100%;
+  --t-project-1: 168 100% 36%;
+  --t-project-2: 252 29% 50%;
+  --t-project-3: 30 64% 53%;
+}
+
+/* ================================================================
+   5. CARBON
+   ================================================================ */
+[data-theme="carbon"] {
+  color-scheme: dark;
+
+  --background: 0 0% 9%;
+  --foreground: 0 0% 88%;
+  --card: 0 0% 11%;
+  --card-foreground: 0 0% 88%;
+  --popover: 0 0% 11%;
+  --popover-foreground: 0 0% 88%;
+  --primary: 161 67% 55%;
+  --primary-foreground: 0 0% 9%;
+  --secondary: 0 0% 14%;
+  --secondary-foreground: 0 0% 88%;
+  --muted: 0 0% 13%;
+  --muted-foreground: 0 0% 50%;
+  --accent: 0 0% 14%;
+  --accent-foreground: 0 0% 88%;
+  --destructive: 354 67% 56%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 0 0% 18%;
+  --input: 0 0% 18%;
+  --ring: 161 67% 55%;
+  --radius: 0.5rem;
+
+  --sidebar-background: 0 0% 10%;
+  --sidebar-foreground: 0 0% 88%;
+  --sidebar-primary: 161 67% 55%;
+  --sidebar-primary-foreground: 0 0% 9%;
+  --sidebar-accent: 161 67% 55% / 0.1;
+  --sidebar-accent-foreground: 161 67% 55%;
+  --sidebar-border: 0 0% 16%;
+  --sidebar-ring: 161 67% 55%;
+
+  --chart-1: 161 67% 55%;
+  --chart-2: 235 100% 81%;
+  --chart-3: 40 83% 66%;
+  --chart-4: 354 67% 56%;
+  --chart-5: 280 50% 60%;
+
+  --t-surface: 0 0% 11%;
+  --t-elevated: 0 0% 14%;
+  --t-border-subtle: 0 0% 13%;
+  --t-text-muted: 0 0% 30%;
+  --t-timer-bg: 161 67% 55% / 0.07;
+  --t-timer-border: 161 67% 55% / 0.18;
+  --t-stop: 354 67% 56%;
+  --t-label-1-bg: 161 67% 55% / 0.1;
+  --t-label-1-text: 161 67% 55%;
+  --t-label-2-bg: 235 100% 81% / 0.1;
+  --t-label-2-text: 235 100% 81%;
+  --t-stat-bg: 0 0% 12%;
+  --t-avatar-bg: 161 67% 55%;
+  --t-avatar-text: 0 0% 9%;
+  --t-project-1: 161 67% 55%;
+  --t-project-2: 235 100% 81%;
+  --t-project-3: 40 83% 66%;
+}
+
+/* ================================================================
+   6. HIGH CONTRAST
+   ================================================================ */
+[data-theme="high-contrast"] {
+  color-scheme: dark;
+
+  --background: 0 0% 0%;
+  --foreground: 0 0% 100%;
+  --card: 0 0% 4%;
+  --card-foreground: 0 0% 100%;
+  --popover: 0 0% 4%;
+  --popover-foreground: 0 0% 100%;
+  --primary: 169 100% 50%;
+  --primary-foreground: 0 0% 0%;
+  --secondary: 0 0% 10%;
+  --secondary-foreground: 0 0% 100%;
+  --muted: 0 0% 10%;
+  --muted-foreground: 0 0% 55%;
+  --accent: 0 0% 10%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 355 100% 64%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 0 0% 27%;
+  --input: 0 0% 27%;
+  --ring: 169 100% 50%;
+  --radius: 0.5rem;
+
+  --sidebar-background: 0 0% 2%;
+  --sidebar-foreground: 0 0% 100%;
+  --sidebar-primary: 169 100% 50%;
+  --sidebar-primary-foreground: 0 0% 0%;
+  --sidebar-accent: 169 100% 50% / 0.15;
+  --sidebar-accent-foreground: 169 100% 50%;
+  --sidebar-border: 0 0% 20%;
+  --sidebar-ring: 169 100% 50%;
+
+  --chart-1: 169 100% 50%;
+  --chart-2: 234 100% 85%;
+  --chart-3: 42 100% 69%;
+  --chart-4: 355 100% 64%;
+  --chart-5: 280 70% 70%;
+
+  --t-surface: 0 0% 4%;
+  --t-elevated: 0 0% 10%;
+  --t-border-subtle: 0 0% 16%;
+  --t-text-muted: 0 0% 55%;
+  --t-timer-bg: 169 100% 50% / 0.1;
+  --t-timer-border: 169 100% 50% / 0.4;
+  --t-stop: 355 100% 64%;
+  --t-label-1-bg: 169 100% 50% / 0.15;
+  --t-label-1-text: 169 100% 50%;
+  --t-label-2-bg: 234 100% 85% / 0.15;
+  --t-label-2-text: 234 100% 85%;
+  --t-stat-bg: 0 0% 7%;
+  --t-avatar-bg: 169 100% 50%;
+  --t-avatar-text: 0 0% 0%;
+  --t-project-1: 169 100% 50%;
+  --t-project-2: 234 100% 85%;
+  --t-project-3: 42 100% 69%;
+}
