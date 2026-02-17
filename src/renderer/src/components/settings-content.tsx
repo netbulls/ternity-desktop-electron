@@ -17,7 +17,7 @@ export function SettingsContent({
 }) {
   const { theme, setTheme } = useTheme();
   const { scale, setScale } = useScale();
-  const { environmentConfig, signOut } = useAuth();
+  const { environmentConfig, user, signOut } = useAuth();
 
   return (
     <div style={{ padding: scaled(16) }}>
@@ -160,7 +160,7 @@ export function SettingsContent({
         </div>
       </div>
 
-      {/* Environment + Sign out */}
+      {/* Environment + User info + Sign out */}
       <div className="mt-4 border-t border-border" style={{ paddingTop: scaled(12) }}>
         <div
           className="mb-3 flex items-center text-muted-foreground"
@@ -174,6 +174,14 @@ export function SettingsContent({
             {environmentConfig.label}
           </span>
         </div>
+        {user && (
+          <div
+            className="mb-3 truncate text-muted-foreground"
+            style={{ fontSize: scaled(9) }}
+          >
+            {user.name ?? user.email ?? user.sub}
+          </div>
+        )}
         <button
           className="flex w-full items-center justify-center rounded-md border border-border bg-card text-muted-foreground transition-colors hover:border-red-500/40 hover:bg-red-500/8 hover:text-red-400"
           style={{ gap: scaled(6), padding: `${scaled(8)} ${scaled(12)}`, fontSize: scaled(11) }}

@@ -36,5 +36,10 @@ interface Window {
     getAuthState: (envId: string) => Promise<AuthState>;
     getAccessToken: (envId: string) => Promise<string | null>;
     cancelSignIn: () => Promise<void>;
+    apiFetch: (
+      envId: string,
+      path: string,
+      options?: { method?: string; body?: unknown },
+    ) => Promise<{ data?: unknown; error?: string; status: number }>;
   };
 }

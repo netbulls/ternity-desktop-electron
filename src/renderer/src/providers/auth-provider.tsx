@@ -10,6 +10,7 @@ interface AuthContextValue {
   environment: EnvironmentId;
   environmentConfig: EnvironmentConfig;
   isAuthenticated: boolean;
+  isDemo: boolean;
   isLoading: boolean;
   isSigningIn: boolean;
   user: AuthUser | null;
@@ -30,6 +31,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
 
   const environmentConfig = ENVIRONMENTS[environment];
+  const isDemo = isAuthenticated && user?.sub === 'demo';
 
   // Load persisted environment + restore auth state on mount
   useEffect(() => {
@@ -62,6 +64,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const setEnvironment = useCallback((env: EnvironmentId) => {
     setEnvironmentState(env);
     window.electronAPI?.setEnvironment(env);
+
+    // Re-check auth state for the new environment
+    const api = window.electronAPI;
+    if (api) {
+      api.getAuthState(env).then((state) => {
+        setIsAuthenticated(state.isAuthenticated);
+        setUser(state.user);
+      });
+    } else {
+      setIsAuthenticated(false);
+      setUser(null);
+    }
   }, []);
 
   const signIn = useCallback(() => {
@@ -105,6 +119,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         environment,
         environmentConfig,
         isAuthenticated,
+        isDemo,
         isLoading,
         isSigningIn,
         user,

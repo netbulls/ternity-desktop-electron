@@ -9,7 +9,7 @@ import {
   getAccessToken,
   abortSignIn,
 } from './auth';
-import type { EnvironmentId } from './environments';
+import { ENVIRONMENTS, type EnvironmentId } from './environments';
 
 let tray: Tray | null = null;
 let popup: BrowserWindow | null = null;
@@ -158,6 +158,41 @@ app.whenReady().then(() => {
   ipcMain.handle('auth:cancel-sign-in', () => {
     abortSignIn();
   });
+
+  // IPC: API proxy — avoids CORS by making fetch calls from main process
+  ipcMain.handle(
+    'api:fetch',
+    async (_event, envId: string, path: string, options?: { method?: string; body?: unknown }) => {
+      const token = await getAccessToken(envId as EnvironmentId);
+      if (!token) return { error: 'No access token', status: 401 };
+
+      const env = ENVIRONMENTS[envId as EnvironmentId];
+      const method = options?.method ?? 'GET';
+      const headers: Record<string, string> = {
+        Authorization: `Bearer ${token}`,
+      };
+
+      let body: string | undefined;
+      if (method !== 'GET') {
+        headers['Content-Type'] = 'application/json';
+        body = options?.body !== undefined ? JSON.stringify(options.body) : '{}';
+      }
+
+      try {
+        const res = await fetch(`${env.apiBaseUrl}${path}`, { method, headers, body });
+
+        if (!res.ok) {
+          const text = await res.text().catch(() => '');
+          return { error: `${res.status} ${res.statusText}: ${text}`, status: res.status };
+        }
+
+        return { data: await res.json(), status: res.status };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Network error';
+        return { error: message, status: 0 };
+      }
+    },
+  );
 });
 
 app.on('window-all-closed', () => {

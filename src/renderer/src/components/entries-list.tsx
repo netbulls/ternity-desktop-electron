@@ -1,26 +1,38 @@
 import { motion } from 'motion/react';
 import { Play } from 'lucide-react';
 import { scaled } from '@/lib/scaled';
-import type { MockEntry, MockDayGroup, TrackingContext } from './tray-popup';
+import type { Entry, DayGroup } from '@/lib/api-types';
+import { formatDuration } from './tray-popup';
 
 interface EntriesListProps {
-  tracking: TrackingContext | null;
-  weekEntries: MockDayGroup[];
-  onPlay: (entry: MockEntry) => void;
+  currentEntry: Entry | null;
+  entries: DayGroup[];
+  onResume: (entryId: string) => void;
 }
 
-export function EntriesList({ tracking, weekEntries, onPlay }: EntriesListProps) {
+function formatDateLabel(dateStr: string): string {
+  const date = new Date(dateStr + 'T12:00:00');
+  const today = new Date();
+  today.setHours(12, 0, 0, 0);
+  const diffDays = Math.round((today.getTime() - date.getTime()) / (24 * 60 * 60 * 1000));
+  if (diffDays === 0) return 'Today';
+  if (diffDays === 1) return 'Yesterday';
+  if (diffDays < 7) return date.toLocaleDateString('en-US', { weekday: 'long' });
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+export function EntriesList({ currentEntry, entries, onResume }: EntriesListProps) {
   return (
     <div>
-      {/* Scrollable entries area — ~5 visible rows */}
       <div style={{ maxHeight: scaled(210), overflowY: 'auto' }}>
-        {tracking && <TrackingRow tracking={tracking} />}
-        {weekEntries.map((day, dayIdx) => (
-          <DayGroup
-            key={day.label}
+        {currentEntry && <TrackingRow entry={currentEntry} />}
+        {entries.map((day, dayIdx) => (
+          <DayGroupRow
+            key={day.date}
             day={day}
-            onPlay={onPlay}
-            isFirst={dayIdx === 0 && !tracking}
+            runningEntryId={currentEntry?.id ?? null}
+            onResume={onResume}
+            isFirst={dayIdx === 0 && !currentEntry}
           />
         ))}
       </div>
@@ -28,7 +40,8 @@ export function EntriesList({ tracking, weekEntries, onPlay }: EntriesListProps)
   );
 }
 
-function TrackingRow({ tracking }: { tracking: TrackingContext }) {
+function TrackingRow({ entry }: { entry: Entry }) {
+  const color = entry.projectColor ?? 'hsl(var(--primary))';
   return (
     <>
       <DayHeader label="In Progress" />
@@ -43,22 +56,19 @@ function TrackingRow({ tracking }: { tracking: TrackingContext }) {
         <div className="relative shrink-0" style={{ width: scaled(5), height: scaled(5) }}>
           <motion.div
             className="absolute inset-0 rounded-full"
-            style={{ background: tracking.color }}
+            style={{ background: color }}
             animate={{ scale: [1, 1.8, 1], opacity: [1, 0.3, 1] }}
             transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
           />
-          <div
-            className="absolute inset-0 rounded-full"
-            style={{ background: tracking.color }}
-          />
+          <div className="absolute inset-0 rounded-full" style={{ background: color }} />
         </div>
         <div className="min-w-0 flex-1">
           <div className="truncate font-medium text-foreground" style={{ fontSize: scaled(12) }}>
-            {tracking.description}
+            {entry.description || 'Untitled entry'}
           </div>
           <div className="text-muted-foreground" style={{ fontSize: scaled(10) }}>
-            {tracking.client ? <>{tracking.client} &middot; </> : null}
-            {tracking.project}
+            {entry.clientName ? <>{entry.clientName} &middot; </> : null}
+            {entry.projectName ?? 'No project'}
           </div>
         </div>
         <span
@@ -88,15 +98,20 @@ function DayHeader({ label }: { label: string }) {
   );
 }
 
-function DayGroup({
+function DayGroupRow({
   day,
-  onPlay,
+  runningEntryId,
+  onResume,
   isFirst,
 }: {
-  day: MockDayGroup;
-  onPlay: (entry: MockEntry) => void;
+  day: DayGroup;
+  runningEntryId: string | null;
+  onResume: (entryId: string) => void;
   isFirst: boolean;
 }) {
+  const visibleEntries = day.entries.filter((e) => e.id !== runningEntryId);
+  if (visibleEntries.length === 0) return null;
+
   return (
     <>
       {!isFirst && (
@@ -105,8 +120,8 @@ function DayGroup({
           style={{ margin: `${scaled(2)} ${scaled(16)}` }}
         />
       )}
-      <DayHeader label={`${day.label} — ${day.total}`} />
-      {day.entries.map((entry) => (
+      <DayHeader label={`${formatDateLabel(day.date)} — ${formatDuration(day.totalSeconds)}`} />
+      {visibleEntries.map((entry) => (
         <div
           key={entry.id}
           className="group flex items-center transition-colors hover:bg-muted/50"
@@ -114,26 +129,30 @@ function DayGroup({
         >
           <div
             className="shrink-0 rounded-full"
-            style={{ width: scaled(5), height: scaled(5), background: entry.color }}
+            style={{
+              width: scaled(5),
+              height: scaled(5),
+              background: entry.projectColor ?? 'hsl(var(--primary))',
+            }}
           />
           <div className="min-w-0 flex-1">
             <div className="truncate text-foreground" style={{ fontSize: scaled(12) }}>
-              {entry.description}
+              {entry.description || 'Untitled entry'}
             </div>
             <div className="text-muted-foreground" style={{ fontSize: scaled(10) }}>
-              {entry.project}
+              {entry.projectName ?? 'No project'}
             </div>
           </div>
           <div
             className="shrink-0 font-brand font-semibold tabular-nums text-muted-foreground"
             style={{ fontSize: scaled(12) }}
           >
-            {entry.duration}
+            {formatDuration(entry.durationSeconds ?? 0)}
           </div>
           <button
             className="flex shrink-0 items-center justify-center rounded-full text-muted-foreground/30 opacity-0 transition-all hover:bg-primary/15 hover:text-primary group-hover:opacity-100"
             style={{ width: scaled(22), height: scaled(22) }}
-            onClick={() => onPlay(entry)}
+            onClick={() => onResume(entry.id)}
           >
             <Play style={{ width: scaled(10), height: scaled(10) }} fill="currentColor" />
           </button>

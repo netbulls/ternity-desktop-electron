@@ -1,7 +1,15 @@
 import { safeStorage, shell } from 'electron';
 import { createServer, type Server } from 'http';
 import { randomBytes, createHash } from 'crypto';
+import { appendFileSync } from 'fs';
 import { readConfig, writeConfig } from './config';
+
+function authLog(...args: unknown[]): void {
+  const msg = args.map(String).join(' ');
+  const line = `[${new Date().toISOString()}] ${msg}\n`;
+  console.log(msg);
+  try { appendFileSync('/tmp/auth-debug.log', line); } catch { /* ignore */ }
+}
 import {
   ENVIRONMENTS,
   LOGTO_REDIRECT_URI,
@@ -349,16 +357,16 @@ export async function signIn(envId: EnvironmentId): Promise<SignInResult> {
   activeSignIn = (async (): Promise<SignInResult> => {
     try {
       // 1. Discover OIDC endpoints
-      console.log('[auth] Discovering OIDC endpoints for', env.logtoEndpoint);
+      authLog('[auth] Discovering OIDC endpoints for', env.logtoEndpoint);
       const oidc = await discoverOidc(env.logtoEndpoint);
-      console.log('[auth] OIDC discovered:', oidc.authorization_endpoint);
+      authLog('[auth] OIDC discovered:', oidc.authorization_endpoint);
 
       // 2. Generate PKCE pair
       const codeVerifier = generateCodeVerifier();
       const codeChallenge = generateCodeChallenge(codeVerifier);
 
       // 3. Start callback server
-      console.log('[auth] Starting callback server on port', CALLBACK_PORT);
+      authLog('[auth] Starting callback server on port', CALLBACK_PORT);
       const callbackPromise = startCallbackServer();
 
       // 4. Build auth URL and open in system browser
@@ -374,17 +382,17 @@ export async function signIn(envId: EnvironmentId): Promise<SignInResult> {
       });
 
       const authUrl = `${oidc.authorization_endpoint}?${authParams.toString()}`;
-      console.log('[auth] Opening browser:', authUrl);
+      authLog('[auth] Opening browser:', authUrl);
       await shell.openExternal(authUrl);
-      console.log('[auth] Browser opened, waiting for callback...');
+      authLog('[auth] Browser opened, waiting for callback...');
 
       // 5. Wait for callback with auth code
       const { code, close } = await callbackPromise;
-      console.log('[auth] Got auth code, exchanging for tokens...');
+      authLog('[auth] Got auth code, exchanging for tokens...');
 
       // 6. Exchange code for tokens
       const tokens = await exchangeCode(oidc.token_endpoint, env.logtoAppId, code, codeVerifier);
-      console.log('[auth] Tokens received');
+      authLog('[auth] Tokens received');
 
       // 7. Store tokens
       storeTokens(envId, tokens);
@@ -392,12 +400,12 @@ export async function signIn(envId: EnvironmentId): Promise<SignInResult> {
 
       // 8. Decode user from ID token
       const user = tokens.id_token ? decodeIdToken(tokens.id_token) : null;
-      console.log('[auth] Sign-in complete, user:', user?.name ?? user?.sub);
+      authLog('[auth] Sign-in complete, user:', user?.name ?? user?.sub);
 
       return { success: true, isAuthenticated: true, user };
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error';
-      console.error('[auth] Sign-in failed:', message);
+      authLog('[auth] ERROR: Sign-in failed:', message);
       return { success: false, error: message };
     } finally {
       activeServer = null;
@@ -415,8 +423,24 @@ export function abortSignIn(): void {
   }
 }
 
-export function signOut(envId: EnvironmentId): void {
+export async function signOut(envId: EnvironmentId): Promise<void> {
+  const tokens = loadTokens(envId);
   clearTokens(envId);
+
+  // End the Logto browser session so the next sign-in shows the login form
+  try {
+    const env = ENVIRONMENTS[envId];
+    const oidc = await discoverOidc(env.logtoEndpoint);
+    if (oidc.end_session_endpoint) {
+      const params = new URLSearchParams({ client_id: env.logtoAppId });
+      if (tokens?.id_token) {
+        params.set('id_token_hint', tokens.id_token);
+      }
+      await shell.openExternal(`${oidc.end_session_endpoint}?${params.toString()}`);
+    }
+  } catch {
+    // Best effort — tokens are already cleared locally
+  }
 }
 
 export function getAuthState(envId: EnvironmentId): AuthState {

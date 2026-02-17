@@ -15,4 +15,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getAuthState: (envId: string) => ipcRenderer.invoke('auth:get-auth-state', envId),
   getAccessToken: (envId: string) => ipcRenderer.invoke('auth:get-access-token', envId),
   cancelSignIn: () => ipcRenderer.invoke('auth:cancel-sign-in'),
+  apiFetch: (envId: string, path: string, options?: { method?: string; body?: unknown }) =>
+    ipcRenderer.invoke('api:fetch', envId, path, options),
 });

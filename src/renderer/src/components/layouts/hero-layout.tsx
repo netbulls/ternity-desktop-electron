@@ -6,15 +6,10 @@ import { AnimatedDigit } from '../animated-digit';
 import { ProjectPicker } from '../project-picker';
 import { EntriesList } from '../entries-list';
 import type { LayoutProps } from '../tray-popup';
-import {
-  MOCK_STATS,
-  MOCK_STATS_TRACKING,
-  MOCK_PROJECTS,
-  formatTimer,
-} from '../tray-popup';
+import { formatTimer, formatDuration } from '../tray-popup';
+import type { Stats } from '@/lib/api-types';
 
-function MiniCards({ tracking }: { tracking: boolean }) {
-  const stats = tracking ? MOCK_STATS_TRACKING : MOCK_STATS;
+function MiniCards({ stats }: { stats: Stats }) {
   return (
     <div
       className="grid grid-cols-2 border-b border-border"
@@ -31,7 +26,7 @@ function MiniCards({ tracking }: { tracking: boolean }) {
           className="font-brand font-bold tabular-nums text-primary"
           style={{ fontSize: scaled(15) }}
         >
-          {stats.today}
+          {formatDuration(stats.todaySeconds)}
         </div>
         <div
           className="font-brand uppercase tracking-wider text-muted-foreground"
@@ -51,7 +46,7 @@ function MiniCards({ tracking }: { tracking: boolean }) {
           className="font-brand font-bold tabular-nums text-foreground"
           style={{ fontSize: scaled(15) }}
         >
-          {stats.week}
+          {formatDuration(stats.weekSeconds)}
         </div>
         <div
           className="font-brand uppercase tracking-wider text-muted-foreground"
@@ -82,18 +77,21 @@ function PopupFooter() {
 }
 
 export function HeroLayout({
-  timer,
-  tracking,
+  timerRunning,
+  elapsed,
+  currentEntry,
   onStart,
   onStop,
-  onPlay,
+  onResume,
   selectedProject,
   onProjectSelect,
   description,
   onDescriptionChange,
-  weekEntries,
+  entries,
+  stats,
+  projects,
 }: LayoutProps) {
-  const digits = formatTimer(timer.elapsed).split('');
+  const digits = formatTimer(elapsed).split('');
   const [pickerOpen, setPickerOpen] = useState(false);
   const pillRef = useRef<HTMLDivElement>(null);
 
@@ -102,7 +100,7 @@ export function HeroLayout({
       <motion.div
         className="relative text-center"
         animate={{
-          backgroundColor: timer.running ? 'hsl(var(--primary) / 0.03)' : 'transparent',
+          backgroundColor: timerRunning ? 'hsl(var(--primary) / 0.03)' : 'transparent',
         }}
         transition={{ duration: 0.3 }}
         style={{ padding: `${scaled(20)} ${scaled(16)}` }}
@@ -110,7 +108,7 @@ export function HeroLayout({
         {/* Radial glow */}
         <motion.div
           className="pointer-events-none absolute inset-0"
-          animate={{ opacity: timer.running ? 1 : 0 }}
+          animate={{ opacity: timerRunning ? 1 : 0 }}
           transition={{ duration: 0.3 }}
           style={{
             background:
@@ -123,9 +121,7 @@ export function HeroLayout({
           className="relative font-brand font-bold tabular-nums tracking-wider"
           style={{ fontSize: scaled(36), letterSpacing: '2px', lineHeight: 1 }}
           animate={{
-            color: timer.running
-              ? 'hsl(var(--primary))'
-              : 'hsl(var(--muted-foreground) / 0.2)',
+            color: timerRunning ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground) / 0.2)',
           }}
           transition={{ duration: 0.3 }}
         >
@@ -140,7 +136,7 @@ export function HeroLayout({
           style={{ gap: scaled(12), marginTop: scaled(14), height: scaled(32) }}
         >
           <AnimatePresence mode="wait" initial={false}>
-            {timer.running ? (
+            {timerRunning ? (
               <motion.div
                 key="desc"
                 className="truncate text-muted-foreground"
@@ -150,7 +146,7 @@ export function HeroLayout({
                 exit={{ opacity: 0, y: -4 }}
                 transition={{ duration: 0.15 }}
               >
-                {tracking?.description || description || 'Untitled entry'}
+                {currentEntry?.description || 'Untitled entry'}
               </motion.div>
             ) : (
               <motion.div
@@ -177,7 +173,7 @@ export function HeroLayout({
           </AnimatePresence>
 
           <AnimatePresence mode="wait" initial={false}>
-            {timer.running ? (
+            {timerRunning ? (
               <motion.button
                 key="stop"
                 className="flex shrink-0 items-center justify-center rounded-full bg-destructive text-white"
@@ -212,7 +208,7 @@ export function HeroLayout({
         {/* Project pill / label */}
         <div className="relative" style={{ marginTop: scaled(8), height: scaled(28) }}>
           <AnimatePresence mode="wait" initial={false}>
-            {timer.running ? (
+            {timerRunning ? (
               <motion.div
                 key="project-label"
                 className="flex items-center justify-center text-muted-foreground"
@@ -232,11 +228,12 @@ export function HeroLayout({
                   style={{
                     width: scaled(6),
                     height: scaled(6),
-                    background: tracking?.color ?? selectedProject?.color ?? 'hsl(var(--primary))',
+                    background:
+                      currentEntry?.projectColor ?? selectedProject?.color ?? 'hsl(var(--primary))',
                   }}
                 />
                 <span className="font-medium text-primary">
-                  {tracking?.project ?? selectedProject?.name ?? 'No project'}
+                  {currentEntry?.projectName ?? selectedProject?.name ?? 'No project'}
                 </span>
               </motion.div>
             ) : (
@@ -266,7 +263,7 @@ export function HeroLayout({
                         style={{
                           width: scaled(6),
                           height: scaled(6),
-                          background: selectedProject.color,
+                          background: selectedProject.color ?? 'hsl(var(--primary))',
                         }}
                       />
                       <span className="text-foreground">{selectedProject.name}</span>
@@ -285,7 +282,7 @@ export function HeroLayout({
                       selected={selectedProject}
                       onSelect={onProjectSelect}
                       onClose={() => setPickerOpen(false)}
-                      projects={MOCK_PROJECTS}
+                      projects={projects}
                     />
                   )}
                 </AnimatePresence>
@@ -295,8 +292,8 @@ export function HeroLayout({
         </div>
       </motion.div>
 
-      <MiniCards tracking={timer.running} />
-      <EntriesList tracking={tracking} weekEntries={weekEntries} onPlay={onPlay} />
+      <MiniCards stats={stats} />
+      <EntriesList currentEntry={currentEntry} entries={entries} onResume={onResume} />
       <PopupFooter />
     </>
   );

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Search, Clock, Check, X } from 'lucide-react';
 import { scaled } from '@/lib/scaled';
-import type { MockProject } from './tray-popup';
+import type { ProjectOption } from '@/lib/api-types';
 
 export function ProjectPicker({
   selected,
@@ -10,15 +10,18 @@ export function ProjectPicker({
   onClose,
   projects,
 }: {
-  selected: MockProject | null;
-  onSelect: (project: MockProject | null) => void;
+  selected: ProjectOption | null;
+  onSelect: (project: ProjectOption | null) => void;
   onClose: () => void;
-  projects: MockProject[];
+  projects: ProjectOption[];
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const [search, setSearch] = useState('');
-  const [recentIds] = useState<string[]>(() => ['p1', 'p2']);
+  const [recentIds] = useState<string[]>(() => {
+    const first = projects.slice(0, 2).map((p) => p.id);
+    return first;
+  });
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -37,9 +40,9 @@ export function ProjectPicker({
 
   // Group projects by client
   const grouped = (() => {
-    const map = new Map<string, MockProject[]>();
+    const map = new Map<string, ProjectOption[]>();
     for (const p of projects) {
-      const client = p.client || 'No Client';
+      const client = p.clientName || 'No Client';
       if (!map.has(client)) map.set(client, []);
       map.get(client)!.push(p);
     }
@@ -48,7 +51,7 @@ export function ProjectPicker({
 
   const recentProjects = recentIds
     .map((id) => projects.find((p) => p.id === id))
-    .filter((p): p is MockProject => p != null);
+    .filter((p): p is ProjectOption => p != null);
 
   const filtered = search
     ? grouped
@@ -62,9 +65,7 @@ export function ProjectPicker({
         }))
         .filter((g) => g.projects.length > 0)
     : [
-        ...(recentProjects.length > 0
-          ? [{ client: 'Recent', projects: recentProjects }]
-          : []),
+        ...(recentProjects.length > 0 ? [{ client: 'Recent', projects: recentProjects }] : []),
         ...grouped,
       ];
 
@@ -162,7 +163,11 @@ export function ProjectPicker({
                   >
                     <motion.div
                       className="shrink-0 rounded-full"
-                      style={{ width: scaled(8), height: scaled(8), background: project.color }}
+                      style={{
+                        width: scaled(8),
+                        height: scaled(8),
+                        background: project.color ?? 'hsl(var(--primary))',
+                      }}
                       animate={isSelected ? { scale: [1, 1.3, 1] } : {}}
                       transition={{ duration: 0.3 }}
                     />
@@ -170,12 +175,12 @@ export function ProjectPicker({
                       <div className="truncate" style={{ fontSize: scaled(12) }}>
                         {project.name}
                       </div>
-                      {project.client && (
+                      {project.clientName && (
                         <div
                           className="truncate text-muted-foreground"
                           style={{ fontSize: scaled(10) }}
                         >
-                          {project.client}
+                          {project.clientName}
                         </div>
                       )}
                     </div>

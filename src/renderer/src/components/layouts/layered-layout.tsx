@@ -6,26 +6,18 @@ import { AnimatedDigit } from '../animated-digit';
 import { ProjectPicker } from '../project-picker';
 import { EntriesList } from '../entries-list';
 import type { LayoutProps } from '../tray-popup';
-import {
-  MOCK_STATS,
-  MOCK_STATS_TRACKING,
-  MOCK_PROJECTS,
-  formatTimer,
-} from '../tray-popup';
+import { formatTimer, formatDuration } from '../tray-popup';
+import type { Stats } from '@/lib/api-types';
 
-function StatsStrip({ tracking }: { tracking: boolean }) {
-  const stats = tracking ? MOCK_STATS_TRACKING : MOCK_STATS;
+function StatsStrip({ stats }: { stats: Stats }) {
   return (
     <div className="flex border-b border-border">
-      <div
-        className="flex-1 py-2.5 text-center"
-        style={{ padding: `${scaled(10)} ${scaled(16)}` }}
-      >
+      <div className="flex-1 py-2.5 text-center" style={{ padding: `${scaled(10)} ${scaled(16)}` }}>
         <div
           className="font-brand font-bold tabular-nums text-primary"
           style={{ fontSize: scaled(16) }}
         >
-          {stats.today}
+          {formatDuration(stats.todaySeconds)}
         </div>
         <div
           className="mt-0.5 font-brand uppercase tracking-widest text-muted-foreground"
@@ -35,15 +27,12 @@ function StatsStrip({ tracking }: { tracking: boolean }) {
         </div>
       </div>
       <div className="w-px bg-border" />
-      <div
-        className="flex-1 py-2.5 text-center"
-        style={{ padding: `${scaled(10)} ${scaled(16)}` }}
-      >
+      <div className="flex-1 py-2.5 text-center" style={{ padding: `${scaled(10)} ${scaled(16)}` }}>
         <div
           className="font-brand font-bold tabular-nums text-foreground"
           style={{ fontSize: scaled(16) }}
         >
-          {stats.week}
+          {formatDuration(stats.weekSeconds)}
         </div>
         <div
           className="mt-0.5 font-brand uppercase tracking-widest text-muted-foreground"
@@ -74,18 +63,21 @@ function PopupFooter() {
 }
 
 export function LayeredLayout({
-  timer,
-  tracking,
+  timerRunning,
+  elapsed,
+  currentEntry,
   onStart,
   onStop,
-  onPlay,
+  onResume,
   selectedProject,
   onProjectSelect,
   description,
   onDescriptionChange,
-  weekEntries,
+  entries,
+  stats,
+  projects,
 }: LayoutProps) {
-  const digits = formatTimer(timer.elapsed).split('');
+  const digits = formatTimer(elapsed).split('');
   const [pickerOpen, setPickerOpen] = useState(false);
   const pillRef = useRef<HTMLDivElement>(null);
 
@@ -93,8 +85,8 @@ export function LayeredLayout({
     <>
       <motion.div
         animate={{
-          backgroundColor: timer.running ? 'hsl(var(--primary) / 0.04)' : 'transparent',
-          borderColor: timer.running ? 'hsl(var(--primary) / 0.15)' : 'hsl(var(--border))',
+          backgroundColor: timerRunning ? 'hsl(var(--primary) / 0.04)' : 'transparent',
+          borderColor: timerRunning ? 'hsl(var(--primary) / 0.15)' : 'hsl(var(--border))',
         }}
         transition={{ duration: 0.3 }}
         style={{
@@ -105,7 +97,7 @@ export function LayeredLayout({
         {/* Row 1: description / input */}
         <div style={{ marginBottom: scaled(8) }}>
           <AnimatePresence mode="wait" initial={false}>
-            {timer.running ? (
+            {timerRunning ? (
               <motion.div
                 key="desc"
                 initial={{ opacity: 0, y: 4 }}
@@ -117,7 +109,7 @@ export function LayeredLayout({
                   className="truncate font-medium text-foreground"
                   style={{ fontSize: scaled(13), lineHeight: `${scaled(32)}` }}
                 >
-                  {tracking?.description || description || 'Untitled entry'}
+                  {currentEntry?.description || 'Untitled entry'}
                 </div>
               </motion.div>
             ) : (
@@ -147,7 +139,7 @@ export function LayeredLayout({
         {/* Row 2: project + timer + button */}
         <div className="flex items-center" style={{ gap: scaled(8), height: scaled(32) }}>
           <AnimatePresence mode="wait" initial={false}>
-            {timer.running ? (
+            {timerRunning ? (
               <motion.div
                 key="tracking-project"
                 className="flex items-center text-muted-foreground"
@@ -162,13 +154,14 @@ export function LayeredLayout({
                   style={{
                     width: scaled(6),
                     height: scaled(6),
-                    background: tracking?.color ?? selectedProject?.color ?? 'hsl(var(--primary))',
+                    background:
+                      currentEntry?.projectColor ?? selectedProject?.color ?? 'hsl(var(--primary))',
                   }}
                 />
-                {tracking ? (
+                {currentEntry ? (
                   <>
-                    {tracking.client && <>{tracking.client} &middot; </>}
-                    {tracking.project}
+                    {currentEntry.clientName && <>{currentEntry.clientName} &middot; </>}
+                    {currentEntry.projectName ?? 'No project'}
                   </>
                 ) : (
                   <>No project</>
@@ -200,7 +193,7 @@ export function LayeredLayout({
                         style={{
                           width: scaled(6),
                           height: scaled(6),
-                          background: selectedProject.color,
+                          background: selectedProject.color ?? 'hsl(var(--primary))',
                         }}
                       />
                       <span className="text-foreground">{selectedProject.name}</span>
@@ -219,7 +212,7 @@ export function LayeredLayout({
                       selected={selectedProject}
                       onSelect={onProjectSelect}
                       onClose={() => setPickerOpen(false)}
-                      projects={MOCK_PROJECTS}
+                      projects={projects}
                     />
                   )}
                 </AnimatePresence>
@@ -232,9 +225,7 @@ export function LayeredLayout({
             className="ml-auto font-brand font-bold tabular-nums tracking-wider"
             style={{ fontSize: scaled(20), letterSpacing: '1px' }}
             animate={{
-              color: timer.running
-                ? 'hsl(var(--primary))'
-                : 'hsl(var(--muted-foreground) / 0.3)',
+              color: timerRunning ? 'hsl(var(--primary))' : 'hsl(var(--muted-foreground) / 0.3)',
             }}
             transition={{ duration: 0.3 }}
           >
@@ -245,7 +236,7 @@ export function LayeredLayout({
 
           {/* Play / Stop button */}
           <AnimatePresence mode="wait" initial={false}>
-            {timer.running ? (
+            {timerRunning ? (
               <motion.button
                 key="stop"
                 className="flex shrink-0 items-center justify-center rounded-full bg-destructive text-white"
@@ -278,8 +269,8 @@ export function LayeredLayout({
         </div>
       </motion.div>
 
-      <StatsStrip tracking={timer.running} />
-      <EntriesList tracking={tracking} weekEntries={weekEntries} onPlay={onPlay} />
+      <StatsStrip stats={stats} />
+      <EntriesList currentEntry={currentEntry} entries={entries} onResume={onResume} />
       <PopupFooter />
     </>
   );

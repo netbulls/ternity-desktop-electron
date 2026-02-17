@@ -1,6 +1,6 @@
 {
   "name": "ternity-desktop",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Ternity Desktop — system tray companion for time tracking",
   "type": "module",
   "main": "./out/main/index.js",
@@ -38,6 +38,9 @@
     "tsx": "^4.0.0"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["electron", "esbuild"]
+    "onlyBuiltDependencies": [
+      "electron",
+      "esbuild"
+    ]
   }
 }
