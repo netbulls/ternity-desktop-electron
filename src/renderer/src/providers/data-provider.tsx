@@ -60,15 +60,24 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const apiBaseUrl = environmentConfig.apiBaseUrl;
 
+  const authFailuresRef = useRef(0);
+
   const handleApiError = useCallback(
     (err: unknown) => {
       if (err instanceof ApiError && err.status === 401) {
-        // Stop polling immediately before triggering sign-out
-        if (pollRef.current) {
-          clearInterval(pollRef.current);
-          pollRef.current = null;
+        authFailuresRef.current += 1;
+        console.warn('[data] 401 error, attempt', authFailuresRef.current);
+
+        // Allow a few 401s for token refresh to recover (wake from sleep, transient failure)
+        if (authFailuresRef.current >= 3) {
+          console.error('[data] Persistent 401 — signing out');
+          if (pollRef.current) {
+            clearInterval(pollRef.current);
+            pollRef.current = null;
+          }
+          authFailuresRef.current = 0;
+          signOut();
         }
-        signOut();
         return;
       }
       const message = err instanceof Error ? err.message : 'Unknown error';
@@ -86,6 +95,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setTimer(timerRes);
     setStats(statsRes);
     setError(null);
+    authFailuresRef.current = 0;
   }, [apiBaseUrl, environment]);
 
   const fetchEntries = useCallback(async () => {

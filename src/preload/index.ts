@@ -17,4 +17,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   cancelSignIn: () => ipcRenderer.invoke('auth:cancel-sign-in'),
   apiFetch: (envId: string, path: string, options?: { method?: string; body?: unknown }) =>
     ipcRenderer.invoke('api:fetch', envId, path, options),
+  getLoginItem: () => ipcRenderer.invoke('app:get-login-item'),
+  setLoginItem: (enabled: boolean) => ipcRenderer.invoke('app:set-login-item', enabled),
+  openLogs: () => ipcRenderer.invoke('app:open-logs'),
 });

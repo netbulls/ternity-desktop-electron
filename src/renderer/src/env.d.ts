@@ -41,5 +41,8 @@ interface Window {
       path: string,
       options?: { method?: string; body?: unknown },
     ) => Promise<{ data?: unknown; error?: string; status: number }>;
+    getLoginItem: () => Promise<boolean>;
+    setLoginItem: (enabled: boolean) => Promise<void>;
+    openLogs: () => Promise<void>;
   };
 }

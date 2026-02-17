@@ -1,15 +1,11 @@
 import { safeStorage, shell } from 'electron';
 import { createServer, type Server } from 'http';
 import { randomBytes, createHash } from 'crypto';
-import { appendFileSync } from 'fs';
 import { readConfig, writeConfig } from './config';
+import { createLogger } from './logger';
 
-function authLog(...args: unknown[]): void {
-  const msg = args.map(String).join(' ');
-  const line = `[${new Date().toISOString()}] ${msg}\n`;
-  console.log(msg);
-  try { appendFileSync('/tmp/auth-debug.log', line); } catch { /* ignore */ }
-}
+const log = createLogger('auth');
+
 import {
   ENVIRONMENTS,
   LOGTO_REDIRECT_URI,
@@ -266,18 +262,18 @@ async function fetchApiProfile(apiBaseUrl: string, accessToken: string): Promise
       headers: { Authorization: `Bearer ${accessToken}` },
     });
     if (!res.ok) {
-      authLog('[auth] API /me fetch failed:', res.status);
+      log.warn('API /me fetch failed:', res.status);
       return null;
     }
     const data = (await res.json()) as { userId: string; displayName: string; email: string | null };
-    authLog('[auth] API /me response:', JSON.stringify(data));
+    log.info('API /me response:', JSON.stringify(data));
     return {
       sub: data.userId,
       name: data.displayName,
       email: data.email ?? undefined,
     };
   } catch (err) {
-    authLog('[auth] API /me error:', err);
+    log.error('API /me error:', err);
     return null;
   }
 }
@@ -385,16 +381,16 @@ export async function signIn(envId: EnvironmentId): Promise<SignInResult> {
   activeSignIn = (async (): Promise<SignInResult> => {
     try {
       // 1. Discover OIDC endpoints
-      authLog('[auth] Discovering OIDC endpoints for', env.logtoEndpoint);
+      log.info('Discovering OIDC endpoints for', env.logtoEndpoint);
       const oidc = await discoverOidc(env.logtoEndpoint);
-      authLog('[auth] OIDC discovered:', oidc.authorization_endpoint);
+      log.info('OIDC discovered:', oidc.authorization_endpoint);
 
       // 2. Generate PKCE pair
       const codeVerifier = generateCodeVerifier();
       const codeChallenge = generateCodeChallenge(codeVerifier);
 
       // 3. Start callback server
-      authLog('[auth] Starting callback server on port', CALLBACK_PORT);
+      log.info('Starting callback server on port', CALLBACK_PORT);
       const callbackPromise = startCallbackServer();
 
       // 4. Build auth URL and open in system browser
@@ -410,17 +406,17 @@ export async function signIn(envId: EnvironmentId): Promise<SignInResult> {
       });
 
       const authUrl = `${oidc.authorization_endpoint}?${authParams.toString()}`;
-      authLog('[auth] Opening browser:', authUrl);
+      log.info('Opening browser:', authUrl);
       await shell.openExternal(authUrl);
-      authLog('[auth] Browser opened, waiting for callback...');
+      log.info('Browser opened, waiting for callback...');
 
       // 5. Wait for callback with auth code
       const { code, close } = await callbackPromise;
-      authLog('[auth] Got auth code, exchanging for tokens...');
+      log.info('Got auth code, exchanging for tokens...');
 
       // 6. Exchange code for tokens
       const tokens = await exchangeCode(oidc.token_endpoint, env.logtoAppId, code, codeVerifier);
-      authLog('[auth] Tokens received');
+      log.info('Tokens received');
       close();
 
       // 7. Get user profile from Ternity API (same source as web app)
@@ -436,11 +432,11 @@ export async function signIn(envId: EnvironmentId): Promise<SignInResult> {
       // 8. Store tokens (with cached profile)
       storeTokens(envId, tokens);
 
-      authLog('[auth] Sign-in complete, user:', user?.name ?? user?.email ?? user?.sub);
+      log.info('Sign-in complete, user:', user?.name ?? user?.email ?? user?.sub);
       return { success: true, isAuthenticated: true, user };
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error';
-      authLog('[auth] ERROR: Sign-in failed:', message);
+      log.error('Sign-in failed:', message);
       return { success: false, error: message };
     } finally {
       activeServer = null;
@@ -472,6 +468,8 @@ export function getAuthState(envId: EnvironmentId): AuthState {
   return { isAuthenticated: true, user };
 }
 
+const refreshFailures = new Map<EnvironmentId, number>();
+
 export async function getAccessToken(envId: EnvironmentId): Promise<string | null> {
   const tokens = loadTokens(envId);
   if (!tokens) return null;
@@ -479,11 +477,16 @@ export async function getAccessToken(envId: EnvironmentId): Promise<string | nul
   // If token is still valid (with 60s buffer), return it
   const now = Math.floor(Date.now() / 1000);
   if (tokens.expires_at > now + 60) {
+    refreshFailures.delete(envId);
     return tokens.access_token;
   }
 
   // Try to refresh
-  if (!tokens.refresh_token) return null;
+  if (!tokens.refresh_token) {
+    log.warn('No refresh token for', envId, '— clearing session');
+    clearTokens(envId);
+    return null;
+  }
 
   try {
     const env = ENVIRONMENTS[envId];
@@ -494,17 +497,32 @@ export async function getAccessToken(envId: EnvironmentId): Promise<string | nul
       tokens.refresh_token,
     );
 
-    // Logto returns new refresh token on rotation
+    // Logto returns new refresh token on rotation — preserve cached profile
     storeTokens(envId, {
       ...newTokens,
       refresh_token: newTokens.refresh_token ?? tokens.refresh_token,
       id_token: newTokens.id_token ?? tokens.id_token,
+      userinfo: tokens.userinfo,
     });
 
+    refreshFailures.delete(envId);
+    log.info('Token refreshed for', envId);
     return newTokens.access_token;
-  } catch {
-    // Refresh failed — clear tokens, user needs to re-auth
-    clearTokens(envId);
+  } catch (err) {
+    const failures = (refreshFailures.get(envId) ?? 0) + 1;
+    refreshFailures.set(envId, failures);
+    log.warn('Refresh failed for', envId, `(attempt ${failures}):`, err);
+
+    // Allow up to 3 consecutive failures before clearing session
+    // (handles transient network issues, laptop wake from sleep, etc.)
+    if (failures >= 3) {
+      log.error('Too many refresh failures — clearing session for', envId);
+      clearTokens(envId);
+      refreshFailures.delete(envId);
+      return null;
+    }
+
+    // Return expired token — the API will 401 but we'll retry refresh next time
     return null;
   }
 }

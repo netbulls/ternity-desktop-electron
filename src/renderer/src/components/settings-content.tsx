@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { Layers, Target, Keyboard, X, LogOut } from 'lucide-react';
 import { scaled } from '@/lib/scaled';
 import { THEMES, type ThemeId } from '@/lib/themes';
@@ -20,6 +21,17 @@ export function SettingsContent({
   const { scale, setScale } = useScale();
   const { environmentConfig, user, signOut } = useAuth();
   const data = useOptionalData();
+  const [startAtLogin, setStartAtLogin] = useState(false);
+
+  useEffect(() => {
+    window.electronAPI?.getLoginItem().then(setStartAtLogin);
+  }, []);
+
+  const toggleStartAtLogin = () => {
+    const next = !startAtLogin;
+    setStartAtLogin(next);
+    window.electronAPI?.setLoginItem(next);
+  };
 
   return (
     <div style={{ padding: scaled(16) }}>
@@ -47,91 +59,108 @@ export function SettingsContent({
         </button>
       </div>
 
-      {/* Layout picker */}
-      <div className="mb-4">
-        <span
-          className="mb-2 block font-brand uppercase tracking-wider text-muted-foreground"
-          style={{ fontSize: scaled(8), letterSpacing: '1.5px' }}
+      {/* Appearance — compact rows */}
+      <div
+        className="mb-3 rounded-md border border-border bg-card"
+        style={{ fontSize: scaled(10) }}
+      >
+        {/* Layout */}
+        <div
+          className="flex items-center justify-between border-b border-border/50"
+          style={{ padding: `${scaled(7)} ${scaled(10)}` }}
         >
-          Layout
-        </span>
-        <div className="flex" style={{ gap: scaled(6) }}>
-          {(
-            [
-              ['layered', 'Layered', Layers],
-              ['hero', 'Hero', Target],
-            ] as const
-          ).map(([key, label, Icon]) => (
-            <button
-              key={key}
-              className={`flex flex-1 items-center justify-center rounded-md border transition-colors ${
-                layout === key
-                  ? 'border-primary/40 bg-primary/8 text-primary'
-                  : 'border-border bg-card text-muted-foreground hover:border-primary/20 hover:text-foreground'
-              }`}
+          <span className="text-muted-foreground">Layout</span>
+          <div className="flex" style={{ gap: scaled(3) }}>
+            {(
+              [
+                ['layered', 'Layered', Layers],
+                ['hero', 'Hero', Target],
+              ] as const
+            ).map(([key, label, Icon]) => (
+              <button
+                key={key}
+                className={`flex items-center rounded-md transition-colors ${
+                  layout === key
+                    ? 'bg-primary/15 text-primary'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+                style={{
+                  gap: scaled(4),
+                  padding: `${scaled(3)} ${scaled(8)}`,
+                  fontSize: scaled(10),
+                }}
+                onClick={() => onLayoutChange(key)}
+              >
+                <Icon style={{ width: scaled(11), height: scaled(11) }} />
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Theme */}
+        <div
+          className="flex items-center justify-between border-b border-border/50"
+          style={{ padding: `${scaled(7)} ${scaled(10)}` }}
+        >
+          <span className="text-muted-foreground">Theme</span>
+          <select
+            className="cursor-pointer rounded-md border-none bg-transparent text-right text-foreground outline-none"
+            style={{ fontSize: scaled(10), padding: `${scaled(2)} 0` }}
+            value={theme}
+            onChange={(e) => setTheme(e.target.value as ThemeId)}
+          >
+            {THEMES.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Scale */}
+        <div
+          className="flex items-center justify-between border-b border-border/50"
+          style={{ padding: `${scaled(7)} ${scaled(10)}` }}
+        >
+          <span className="text-muted-foreground">Scale</span>
+          <select
+            className="cursor-pointer rounded-md border-none bg-transparent text-right text-foreground outline-none"
+            style={{ fontSize: scaled(10), padding: `${scaled(2)} 0` }}
+            value={scale}
+            onChange={(e) => setScale(Number(e.target.value))}
+          >
+            {SCALES.map((s) => (
+              <option key={s.label} value={s.value}>
+                {s.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Start at Login */}
+        <div
+          className="flex cursor-pointer items-center justify-between"
+          style={{ padding: `${scaled(7)} ${scaled(10)}` }}
+          onClick={toggleStartAtLogin}
+        >
+          <span className="text-muted-foreground">Start at Login</span>
+          <span
+            className={`rounded-full transition-colors ${
+              startAtLogin ? 'bg-primary' : 'bg-muted-foreground/30'
+            }`}
+            style={{ width: scaled(28), height: scaled(16), position: 'relative' }}
+          >
+            <span
+              className="absolute rounded-full bg-white transition-all"
               style={{
-                gap: scaled(6),
-                padding: `${scaled(8)} ${scaled(12)}`,
-                fontSize: scaled(11),
+                width: scaled(12),
+                height: scaled(12),
+                top: scaled(2),
+                left: startAtLogin ? scaled(14) : scaled(2),
               }}
-              onClick={() => onLayoutChange(key)}
-            >
-              <Icon style={{ width: scaled(14), height: scaled(14) }} />
-              {label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Theme picker */}
-      <div className="mb-4">
-        <span
-          className="mb-2 block font-brand uppercase tracking-wider text-muted-foreground"
-          style={{ fontSize: scaled(8), letterSpacing: '1.5px' }}
-        >
-          Theme
-        </span>
-        <div className="grid grid-cols-3" style={{ gap: scaled(4) }}>
-          {THEMES.map((t) => (
-            <button
-              key={t.id}
-              className={`rounded-md border text-center transition-colors ${
-                theme === t.id
-                  ? 'border-primary/40 bg-primary/8 text-primary'
-                  : 'border-border bg-card text-muted-foreground hover:border-primary/20 hover:text-foreground'
-              }`}
-              style={{ padding: `${scaled(6)} ${scaled(8)}`, fontSize: scaled(10) }}
-              onClick={() => setTheme(t.id as ThemeId)}
-            >
-              {t.name}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Scale picker */}
-      <div className="mb-4">
-        <span
-          className="mb-2 block font-brand uppercase tracking-wider text-muted-foreground"
-          style={{ fontSize: scaled(8), letterSpacing: '1.5px' }}
-        >
-          Scale
-        </span>
-        <div className="flex" style={{ gap: scaled(4) }}>
-          {SCALES.map((s) => (
-            <button
-              key={s.label}
-              className={`flex-1 rounded-md border text-center transition-colors ${
-                scale === s.value
-                  ? 'border-primary/40 bg-primary/8 text-primary'
-                  : 'border-border bg-card text-muted-foreground hover:border-primary/20 hover:text-foreground'
-              }`}
-              style={{ padding: `${scaled(6)} ${scaled(8)}`, fontSize: scaled(10) }}
-              onClick={() => setScale(s.value)}
-            >
-              {s.label}
-            </button>
-          ))}
+            />
+          </span>
         </div>
       </div>
 
@@ -190,6 +219,17 @@ export function SettingsContent({
         >
           <LogOut style={{ width: scaled(12), height: scaled(12) }} />
           Sign out
+        </button>
+      </div>
+
+      {/* View Logs */}
+      <div className="mt-2 text-center">
+        <button
+          className="text-muted-foreground/40 transition-colors hover:text-muted-foreground"
+          style={{ fontSize: scaled(8) }}
+          onClick={() => window.electronAPI?.openLogs()}
+        >
+          View Logs
         </button>
       </div>
     </div>

@@ -1,6 +1,6 @@
 {
   "name": "ternity-desktop",
-  "version": "0.1.0-1-gcc72d17",
+  "version": "0.1.0-2-g0712fee",
   "description": "Ternity Desktop — system tray companion for time tracking",
   "type": "module",
   "main": "./out/main/index.js",

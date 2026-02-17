@@ -1,7 +1,8 @@
-import { app, BrowserWindow, Tray, screen, nativeImage, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, Tray, Menu, screen, nativeImage, ipcMain, shell } from 'electron';
 import { join } from 'path';
 import { is } from '@electron-toolkit/utils';
 import { readConfig, writeConfig } from './config';
+import { createLogger, getLogPath } from './logger';
 import {
   signIn,
   signOut,
@@ -10,6 +11,9 @@ import {
   abortSignIn,
 } from './auth';
 import { ENVIRONMENTS, type EnvironmentId } from './environments';
+
+const log = createLogger('app');
+const apiLog = createLogger('api');
 
 let tray: Tray | null = null;
 let popup: BrowserWindow | null = null;
@@ -28,6 +32,7 @@ function createPopup(): BrowserWindow {
     roundedCorners: true,
     hasShadow: true,
     backgroundColor: '#0a0a0a',
+    visibleOnAllWorkspaces: true,
     webPreferences: {
       preload: join(__dirname, '../preload/index.cjs'),
       sandbox: true,
@@ -46,6 +51,13 @@ function createPopup(): BrowserWindow {
       win.hide();
     });
   }
+
+  // Esc to close
+  win.webContents.on('before-input-event', (_event, input) => {
+    if (input.key === 'Escape' && input.type === 'keyDown') {
+      win.hide();
+    }
+  });
 
   return win;
 }
@@ -101,15 +113,47 @@ function createTray(): void {
   tray = new Tray(trayImage);
   tray.setToolTip('Ternity');
   tray.on('click', togglePopup);
+
+  // Right-click context menu
+  const contextMenu = Menu.buildFromTemplate([
+    {
+      label: 'Start at Login',
+      type: 'checkbox',
+      checked: app.getLoginItemSettings().openAtLogin,
+      click: (menuItem) => {
+        app.setLoginItemSettings({ openAtLogin: menuItem.checked });
+      },
+    },
+    { type: 'separator' },
+    {
+      label: 'Quit Ternity',
+      click: () => app.quit(),
+    },
+  ]);
+  tray.on('right-click', () => {
+    // Refresh the checkbox state each time the menu opens
+    contextMenu.items[0].checked = app.getLoginItemSettings().openAtLogin;
+    tray?.popUpContextMenu(contextMenu);
+  });
 }
 
 app.whenReady().then(() => {
+  log.info('App ready', { version: app.getVersion(), platform: process.platform, arch: process.arch });
+  log.info('Log file:', getLogPath());
+
   if (process.platform === 'darwin') {
     app.dock.hide();
   }
 
   createTray();
   popup = createPopup();
+
+  // Show popup on launch
+  popup.once('ready-to-show', () => {
+    positionPopup();
+    popup!.show();
+    popup!.focus();
+  });
 
   // IPC: resize window (for settings expand)
   ipcMain.on('resize-window', (_event, width: number, height: number) => {
@@ -124,6 +168,7 @@ app.whenReady().then(() => {
   });
 
   ipcMain.handle('auth:set-env', (_event, env: string) => {
+    log.info('Environment switched to', env);
     const config = readConfig();
     config.environment = env;
     writeConfig(config);
@@ -159,13 +204,27 @@ app.whenReady().then(() => {
     abortSignIn();
   });
 
+  // IPC: login item (start at login)
+  ipcMain.handle('app:get-login-item', () => {
+    return app.getLoginItemSettings().openAtLogin;
+  });
+
+  ipcMain.handle('app:set-login-item', (_event, enabled: boolean) => {
+    app.setLoginItemSettings({ openAtLogin: enabled });
+  });
+
+  // IPC: open log file in Finder
+  ipcMain.handle('app:open-logs', () => {
+    return shell.showItemInFolder(getLogPath());
+  });
+
   // IPC: API proxy — avoids CORS by making fetch calls from main process
   ipcMain.handle(
     'api:fetch',
     async (_event, envId: string, path: string, options?: { method?: string; body?: unknown }) => {
       const token = await getAccessToken(envId as EnvironmentId);
       if (!token) {
-        console.log('[api] No access token for', envId, path);
+        apiLog.warn(`[${envId}] No access token for ${path}`);
         return { error: 'No access token', status: 401 };
       }
 
@@ -182,23 +241,23 @@ app.whenReady().then(() => {
       }
 
       const url = `${env.apiBaseUrl}${path}`;
-      console.log(`[api] ${method} ${url}`);
+      apiLog.debug(`[${envId}] ${method} ${path}`);
 
       try {
         const res = await fetch(url, { method, headers, body });
 
         if (!res.ok) {
           const text = await res.text().catch(() => '');
-          console.log(`[api] ERROR ${res.status} ${res.statusText}: ${text.slice(0, 200)}`);
+          apiLog.warn(`[${envId}] ${method} ${path} → ${res.status} ${res.statusText}`, text.slice(0, 200));
           return { error: `${res.status} ${res.statusText}: ${text}`, status: res.status };
         }
 
         const data = await res.json();
-        console.log(`[api] OK ${path}`, JSON.stringify(data).slice(0, 100));
+        apiLog.debug(`[${envId}] ${method} ${path} → ${res.status}`);
         return { data, status: res.status };
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Network error';
-        console.log(`[api] NETWORK ERROR ${url}: ${message}`);
+        apiLog.error(`[${envId}] ${method} ${path} NETWORK ERROR:`, message);
         return { error: message, status: 0 };
       }
     },
@@ -207,4 +266,12 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   // Don't quit — tray app stays alive
+});
+
+app.on('before-quit', () => {
+  log.info('App quitting');
+});
+
+app.on('activate', () => {
+  log.debug('App activated');
 });
