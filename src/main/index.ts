@@ -80,7 +80,7 @@ function positionPopup(): void {
 function togglePopup(): void {
   if (!popup) return;
 
-  if (popup.isVisible()) {
+  if (popup.isVisible() && popup.isFocused()) {
     popup.hide();
   } else {
     positionPopup();
@@ -164,7 +164,10 @@ app.whenReady().then(() => {
     'api:fetch',
     async (_event, envId: string, path: string, options?: { method?: string; body?: unknown }) => {
       const token = await getAccessToken(envId as EnvironmentId);
-      if (!token) return { error: 'No access token', status: 401 };
+      if (!token) {
+        console.log('[api] No access token for', envId, path);
+        return { error: 'No access token', status: 401 };
+      }
 
       const env = ENVIRONMENTS[envId as EnvironmentId];
       const method = options?.method ?? 'GET';
@@ -178,17 +181,24 @@ app.whenReady().then(() => {
         body = options?.body !== undefined ? JSON.stringify(options.body) : '{}';
       }
 
+      const url = `${env.apiBaseUrl}${path}`;
+      console.log(`[api] ${method} ${url}`);
+
       try {
-        const res = await fetch(`${env.apiBaseUrl}${path}`, { method, headers, body });
+        const res = await fetch(url, { method, headers, body });
 
         if (!res.ok) {
           const text = await res.text().catch(() => '');
+          console.log(`[api] ERROR ${res.status} ${res.statusText}: ${text.slice(0, 200)}`);
           return { error: `${res.status} ${res.statusText}: ${text}`, status: res.status };
         }
 
-        return { data: await res.json(), status: res.status };
+        const data = await res.json();
+        console.log(`[api] OK ${path}`, JSON.stringify(data).slice(0, 100));
+        return { data, status: res.status };
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Network error';
+        console.log(`[api] NETWORK ERROR ${url}: ${message}`);
         return { error: message, status: 0 };
       }
     },

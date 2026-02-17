@@ -9,13 +9,14 @@ import {
 } from 'react';
 import { useAuth } from './auth-provider';
 import { apiFetch, ApiError } from '@/lib/api';
-import type { TimerState, DayGroup, Stats, ProjectOption } from '@/lib/api-types';
+import type { TimerState, DayGroup, Stats, ProjectOption, UserProfile } from '@/lib/api-types';
 
 interface DataContextValue {
   timer: TimerState;
   entries: DayGroup[];
   stats: Stats;
   projects: ProjectOption[];
+  userProfile: UserProfile | null;
   isLoading: boolean;
   error: string | null;
   startTimer: (params: { description?: string; projectId?: string }) => Promise<void>;
@@ -39,20 +40,34 @@ function getEntriesDateRange(): { from: string; to: string } {
 }
 
 export function DataProvider({ children }: { children: ReactNode }) {
-  const { environment, environmentConfig, isDemo, signOut } = useAuth();
+  const { environment, environmentConfig, isAuthenticated, isDemo, signOut } = useAuth();
   const [timer, setTimer] = useState<TimerState>(DEFAULT_TIMER);
   const [entries, setEntries] = useState<DayGroup[]>([]);
   const [stats, setStats] = useState<Stats>(DEFAULT_STATS);
   const [projects, setProjects] = useState<ProjectOption[]>([]);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(!isDemo);
   const [error, setError] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Stop polling immediately when auth state changes
+  useEffect(() => {
+    if (!isAuthenticated && pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  }, [isAuthenticated]);
 
   const apiBaseUrl = environmentConfig.apiBaseUrl;
 
   const handleApiError = useCallback(
     (err: unknown) => {
       if (err instanceof ApiError && err.status === 401) {
+        // Stop polling immediately before triggering sign-out
+        if (pollRef.current) {
+          clearInterval(pollRef.current);
+          pollRef.current = null;
+        }
         signOut();
         return;
       }
@@ -88,6 +103,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
     setProjects(res);
   }, [apiBaseUrl, environment]);
 
+  const fetchUserProfile = useCallback(async () => {
+    const res = await apiFetch<UserProfile>(apiBaseUrl, environment, '/api/me');
+    setUserProfile(res);
+  }, [apiBaseUrl, environment]);
+
   // Initial fetch on mount
   useEffect(() => {
     if (isDemo) return;
@@ -95,7 +115,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
     (async () => {
       try {
-        await Promise.all([fetchTimerAndStats(), fetchEntries(), fetchProjects()]);
+        await Promise.all([fetchTimerAndStats(), fetchEntries(), fetchProjects(), fetchUserProfile()]);
       } catch (err) {
         if (!cancelled) handleApiError(err);
       } finally {
@@ -106,15 +126,18 @@ export function DataProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [isDemo, fetchTimerAndStats, fetchEntries, fetchProjects, handleApiError]);
+  }, [isDemo, fetchTimerAndStats, fetchEntries, fetchProjects, fetchUserProfile, handleApiError]);
 
-  // Poll timer + stats every 5s
+  // Poll every 5s — always timer+stats, retry entries/projects if they failed
   useEffect(() => {
     if (isDemo) return;
 
     pollRef.current = setInterval(async () => {
       try {
-        await fetchTimerAndStats();
+        const promises: Promise<void>[] = [fetchTimerAndStats()];
+        if (entries.length === 0) promises.push(fetchEntries());
+        if (projects.length === 0) promises.push(fetchProjects());
+        await Promise.all(promises);
       } catch (err) {
         handleApiError(err);
       }
@@ -123,7 +146,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
     };
-  }, [isDemo, fetchTimerAndStats, handleApiError]);
+  }, [isDemo, fetchTimerAndStats, fetchEntries, fetchProjects, entries.length, projects.length, handleApiError]);
 
   const refetchAfterMutation = useCallback(async () => {
     await Promise.all([fetchTimerAndStats(), fetchEntries()]);
@@ -174,6 +197,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         entries,
         stats,
         projects,
+        userProfile,
         isLoading,
         error,
         startTimer,
@@ -190,4 +214,9 @@ export function useData() {
   const ctx = useContext(DataContext);
   if (!ctx) throw new Error('useData must be used within DataProvider');
   return ctx;
+}
+
+/** Safe version — returns null when used outside DataProvider (e.g. settings panel). */
+export function useOptionalData() {
+  return useContext(DataContext);
 }

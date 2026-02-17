@@ -46,6 +46,7 @@ export interface SignInResult {
 interface OidcConfig {
   authorization_endpoint: string;
   token_endpoint: string;
+  userinfo_endpoint: string;
   end_session_endpoint?: string;
   issuer: string;
 }
@@ -55,6 +56,7 @@ interface TokenSet {
   refresh_token?: string;
   id_token?: string;
   expires_at: number; // Unix timestamp in seconds
+  userinfo?: AuthUser; // cached profile from userinfo endpoint
 }
 
 // ============================================================
@@ -255,6 +257,32 @@ function startCallbackServer(): Promise<{ code: string; close: () => void }> {
 }
 
 // ============================================================
+// Fetch user profile from Ternity API (most reliable source)
+// ============================================================
+
+async function fetchApiProfile(apiBaseUrl: string, accessToken: string): Promise<AuthUser | null> {
+  try {
+    const res = await fetch(`${apiBaseUrl}/api/me`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!res.ok) {
+      authLog('[auth] API /me fetch failed:', res.status);
+      return null;
+    }
+    const data = (await res.json()) as { userId: string; displayName: string; email: string | null };
+    authLog('[auth] API /me response:', JSON.stringify(data));
+    return {
+      sub: data.userId,
+      name: data.displayName,
+      email: data.email ?? undefined,
+    };
+  } catch (err) {
+    authLog('[auth] API /me error:', err);
+    return null;
+  }
+}
+
+// ============================================================
 // Token exchange / refresh
 // ============================================================
 
@@ -378,7 +406,7 @@ export async function signIn(envId: EnvironmentId): Promise<SignInResult> {
         code_challenge: codeChallenge,
         code_challenge_method: 'S256',
         resource: LOGTO_API_RESOURCE,
-        prompt: 'consent',
+        prompt: 'login',
       });
 
       const authUrl = `${oidc.authorization_endpoint}?${authParams.toString()}`;
@@ -393,15 +421,22 @@ export async function signIn(envId: EnvironmentId): Promise<SignInResult> {
       // 6. Exchange code for tokens
       const tokens = await exchangeCode(oidc.token_endpoint, env.logtoAppId, code, codeVerifier);
       authLog('[auth] Tokens received');
-
-      // 7. Store tokens
-      storeTokens(envId, tokens);
       close();
 
-      // 8. Decode user from ID token
-      const user = tokens.id_token ? decodeIdToken(tokens.id_token) : null;
-      authLog('[auth] Sign-in complete, user:', user?.name ?? user?.sub);
+      // 7. Get user profile from Ternity API (same source as web app)
+      const apiProfile = await fetchApiProfile(env.apiBaseUrl, tokens.access_token);
+      if (apiProfile) {
+        tokens.userinfo = apiProfile;
+      }
 
+      // Fall back to ID token if API fetch failed
+      const user = tokens.userinfo
+        ?? (tokens.id_token ? decodeIdToken(tokens.id_token) : null);
+
+      // 8. Store tokens (with cached profile)
+      storeTokens(envId, tokens);
+
+      authLog('[auth] Sign-in complete, user:', user?.name ?? user?.email ?? user?.sub);
       return { success: true, isAuthenticated: true, user };
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error';
@@ -424,30 +459,16 @@ export function abortSignIn(): void {
 }
 
 export async function signOut(envId: EnvironmentId): Promise<void> {
-  const tokens = loadTokens(envId);
   clearTokens(envId);
-
-  // End the Logto browser session so the next sign-in shows the login form
-  try {
-    const env = ENVIRONMENTS[envId];
-    const oidc = await discoverOidc(env.logtoEndpoint);
-    if (oidc.end_session_endpoint) {
-      const params = new URLSearchParams({ client_id: env.logtoAppId });
-      if (tokens?.id_token) {
-        params.set('id_token_hint', tokens.id_token);
-      }
-      await shell.openExternal(`${oidc.end_session_endpoint}?${params.toString()}`);
-    }
-  } catch {
-    // Best effort — tokens are already cleared locally
-  }
+  // No browser redirect needed — prompt: 'login' on sign-in forces a fresh login form
 }
 
 export function getAuthState(envId: EnvironmentId): AuthState {
   const tokens = loadTokens(envId);
   if (!tokens) return { isAuthenticated: false, user: null };
 
-  const user = tokens.id_token ? decodeIdToken(tokens.id_token) : null;
+  // Prefer cached userinfo (fetched from OIDC endpoint), fall back to ID token
+  const user = tokens.userinfo ?? (tokens.id_token ? decodeIdToken(tokens.id_token) : null);
   return { isAuthenticated: true, user };
 }
 

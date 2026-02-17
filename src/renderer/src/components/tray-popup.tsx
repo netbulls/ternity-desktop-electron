@@ -33,6 +33,7 @@ export interface LayoutProps {
   entries: DayGroup[];
   stats: Stats;
   projects: ProjectOption[];
+  webAppUrl: string;
 }
 
 export function formatTimer(seconds: number): string {
@@ -84,6 +85,7 @@ function TimerView({
   onSettingsClick: () => void;
 }) {
   const data = useData();
+  const { environmentConfig } = useAuth();
   const [selectedProject, setSelectedProject] = useState<ProjectOption | null>(null);
   const [description, setDescription] = useState('');
   const [statusState] = useState<StatusState>('none');
@@ -143,6 +145,7 @@ function TimerView({
         entries={data.entries}
         stats={data.stats}
         projects={data.projects}
+        webAppUrl={environmentConfig.webAppUrl}
       />
     </>
   );
@@ -229,7 +232,7 @@ export function TrayPopup() {
       }}
     >
       <div className="flex">
-        {/* Main popup column */}
+        {/* Main popup column — stable ref for ResizeObserver */}
         <div ref={contentRef} style={{ width: popupWidth, flexShrink: 0 }}>
           <AnimatePresence mode="wait">
             {isLoading ? (

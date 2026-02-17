@@ -5,12 +5,14 @@ directories:
   output: dist
 files:
   - out/**/*
+extraResources:
+  - from: resources/trayTemplate.png
+    to: trayTemplate.png
+  - from: resources/trayTemplate@2x.png
+    to: trayTemplate@2x.png
 mac:
   category: public.app-category.productivity
   icon: resources/icon.icns
-  target: dmg
+  target: dir
   identity: null
   forceCodeSigning: false
-dmg:
-  sign: false
-  title: Ternity Desktop

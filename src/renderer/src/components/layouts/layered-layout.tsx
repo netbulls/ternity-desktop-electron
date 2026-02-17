@@ -45,19 +45,20 @@ function StatsStrip({ stats }: { stats: Stats }) {
   );
 }
 
-function PopupFooter() {
+function PopupFooter({ webAppUrl }: { webAppUrl: string }) {
   return (
     <div
       className="flex items-center justify-center border-t border-border"
       style={{ padding: `${scaled(8)} ${scaled(16)}` }}
     >
-      <span
+      <button
         className="flex cursor-pointer items-center text-muted-foreground transition-colors hover:text-primary"
         style={{ fontSize: scaled(11), gap: scaled(4) }}
+        onClick={() => window.electronAPI?.openExternal(webAppUrl)}
       >
         Open Ternity
         <ExternalLink style={{ width: scaled(10), height: scaled(10) }} />
-      </span>
+      </button>
     </div>
   );
 }
@@ -76,6 +77,7 @@ export function LayeredLayout({
   entries,
   stats,
   projects,
+  webAppUrl,
 }: LayoutProps) {
   const digits = formatTimer(elapsed).split('');
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -271,7 +273,7 @@ export function LayeredLayout({
 
       <StatsStrip stats={stats} />
       <EntriesList currentEntry={currentEntry} entries={entries} onResume={onResume} />
-      <PopupFooter />
+      <PopupFooter webAppUrl={webAppUrl} />
     </>
   );
 }

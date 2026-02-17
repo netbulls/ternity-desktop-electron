@@ -4,6 +4,7 @@ import { THEMES, type ThemeId } from '@/lib/themes';
 import { SCALES, useScale } from '@/providers/scale-provider';
 import { useTheme } from '@/providers/theme-provider';
 import { useAuth } from '@/providers/auth-provider';
+import { useOptionalData } from '@/providers/data-provider';
 import type { LayoutType } from './tray-popup';
 
 export function SettingsContent({
@@ -18,16 +19,25 @@ export function SettingsContent({
   const { theme, setTheme } = useTheme();
   const { scale, setScale } = useScale();
   const { environmentConfig, user, signOut } = useAuth();
+  const data = useOptionalData();
 
   return (
     <div style={{ padding: scaled(16) }}>
       <div className="mb-4 flex items-center justify-between">
-        <span
-          className="font-brand font-semibold uppercase tracking-widest text-foreground"
-          style={{ fontSize: scaled(10), letterSpacing: '2px' }}
-        >
-          Settings
-        </span>
+        <div className="flex items-center" style={{ gap: scaled(6) }}>
+          <span
+            className="font-brand font-semibold uppercase tracking-widest text-foreground"
+            style={{ fontSize: scaled(10), letterSpacing: '2px' }}
+          >
+            Settings
+          </span>
+          <span
+            className="rounded border border-primary/30 bg-primary/8 px-1.5 py-0.5 font-mono text-primary"
+            style={{ fontSize: scaled(8) }}
+          >
+            {environmentConfig.label}
+          </span>
+        </div>
         <button
           className="flex items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
           style={{ width: scaled(24), height: scaled(24) }}
@@ -160,34 +170,25 @@ export function SettingsContent({
         </div>
       </div>
 
-      {/* Environment + User info + Sign out */}
-      <div className="mt-4 border-t border-border" style={{ paddingTop: scaled(12) }}>
-        <div
-          className="mb-3 flex items-center text-muted-foreground"
-          style={{ fontSize: scaled(10), gap: scaled(6) }}
-        >
-          Connected to
-          <span
-            className="rounded border border-primary/30 bg-primary/8 px-1.5 py-0.5 font-mono text-primary"
-            style={{ fontSize: scaled(9) }}
-          >
-            {environmentConfig.label}
-          </span>
-        </div>
+      {/* User + Sign out */}
+      <div
+        className="mt-4 flex items-center border-t border-border"
+        style={{ paddingTop: scaled(10), gap: scaled(8) }}
+      >
         {user && (
           <div
-            className="mb-3 truncate text-muted-foreground"
+            className="min-w-0 flex-1 truncate text-muted-foreground"
             style={{ fontSize: scaled(9) }}
           >
-            {user.name ?? user.email ?? user.sub}
+            {data?.userProfile?.displayName ?? user.name ?? user.email ?? user.sub}
           </div>
         )}
         <button
-          className="flex w-full items-center justify-center rounded-md border border-border bg-card text-muted-foreground transition-colors hover:border-red-500/40 hover:bg-red-500/8 hover:text-red-400"
-          style={{ gap: scaled(6), padding: `${scaled(8)} ${scaled(12)}`, fontSize: scaled(11) }}
+          className="flex shrink-0 items-center rounded-md border border-border bg-card text-muted-foreground transition-colors hover:border-red-500/40 hover:bg-red-500/8 hover:text-red-400"
+          style={{ gap: scaled(4), padding: `${scaled(5)} ${scaled(8)}`, fontSize: scaled(10) }}
           onClick={signOut}
         >
-          <LogOut style={{ width: scaled(14), height: scaled(14) }} />
+          <LogOut style={{ width: scaled(12), height: scaled(12) }} />
           Sign out
         </button>
       </div>

@@ -24,7 +24,7 @@ function formatDateLabel(dateStr: string): string {
 export function EntriesList({ currentEntry, entries, onResume }: EntriesListProps) {
   return (
     <div>
-      <div style={{ maxHeight: scaled(210), overflowY: 'auto' }}>
+      <div style={{ maxHeight: scaled(260), overflowY: 'auto' }}>
         {currentEntry && <TrackingRow entry={currentEntry} />}
         {entries.map((day, dayIdx) => (
           <DayGroupRow
