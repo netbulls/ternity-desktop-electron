@@ -115,7 +115,7 @@ export function ProjectPicker({
       </div>
 
       {/* Project list */}
-      <div style={{ maxHeight: scaled(320), overflowY: 'auto', padding: `${scaled(4)} 0` }}>
+      <div style={{ maxHeight: scaled(180), overflowY: 'auto', padding: `${scaled(4)} 0` }}>
         {filtered.length === 0 ? (
           <div
             className="text-center text-muted-foreground"

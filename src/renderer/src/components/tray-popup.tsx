@@ -10,14 +10,14 @@ import { PopupHeader } from './popup-header';
 import { StatusBanner, type StatusState } from './status-banner';
 import { SettingsContent } from './settings-content';
 import { LoginView } from './login-view';
+import { useLayout } from '@/providers/layout-provider';
+import { LiquidGlassLayout } from './layouts/liquid-glass-layout';
 import { LayeredLayout } from './layouts/layered-layout';
 import { HeroLayout } from './layouts/hero-layout';
 
 // ============================================================
 // Exported types and helpers
 // ============================================================
-
-export type LayoutType = 'layered' | 'hero';
 
 export interface LayoutProps {
   timerRunning: boolean;
@@ -30,6 +30,7 @@ export interface LayoutProps {
   onProjectSelect: (project: ProjectOption | null) => void;
   description: string;
   onDescriptionChange: (desc: string) => void;
+  onDescriptionCommit: () => void;
   entries: DayGroup[];
   stats: Stats;
   projects: ProjectOption[];
@@ -78,31 +79,101 @@ function useElapsedSeconds(startedAt: string | null, running: boolean): number {
 // ============================================================
 
 function TimerView({
-  layout,
   onSettingsClick,
 }: {
-  layout: LayoutType;
   onSettingsClick: () => void;
 }) {
   const data = useData();
+  const { layout } = useLayout();
   const { environmentConfig } = useAuth();
   const [selectedProject, setSelectedProject] = useState<ProjectOption | null>(null);
   const [description, setDescription] = useState('');
   const [statusState] = useState<StatusState>('none');
   const [statusDismissed, setStatusDismissed] = useState(false);
   const elapsed = useElapsedSeconds(data.timer.entry?.startedAt ?? null, data.timer.running);
+  const descriptionCommitRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastSyncedEntryIdRef = useRef<string | null>(null);
+  const updateTimerRef = useRef(data.updateTimer);
+  updateTimerRef.current = data.updateTimer;
+  // Sync description + project from running entry (on resume or initial load)
+  useEffect(() => {
+    const entry = data.timer.entry;
+    if (!data.timer.running || !entry) {
+      lastSyncedEntryIdRef.current = null;
+      return;
+    }
+    // Only sync when the entry changes (not on every poll)
+    if (entry.id === lastSyncedEntryIdRef.current) return;
+    lastSyncedEntryIdRef.current = entry.id;
+    setDescription(entry.description || '');
+    // Find matching project
+    const matchedProject = entry.projectId
+      ? data.projects.find((p) => p.id === entry.projectId) ?? null
+      : null;
+    setSelectedProject(matchedProject);
+  }, [data.timer.running, data.timer.entry, data.projects]);
 
   const handleStart = async () => {
     await data.startTimer({
       description: description || undefined,
       projectId: selectedProject?.id,
     });
-    setDescription('');
-    setSelectedProject(null);
+    // Don't clear — sync effect will pick up the running entry's values
   };
 
-  const handleStop = () => data.stopTimer();
-  const handleResume = (entryId: string) => data.resumeTimer(entryId);
+  const handleStop = () => {
+    // Cancel any pending debounced update
+    if (descriptionCommitRef.current) {
+      clearTimeout(descriptionCommitRef.current);
+      descriptionCommitRef.current = null;
+    }
+    lastSyncedEntryIdRef.current = null;
+    setDescription('');
+    setSelectedProject(null);
+    data.stopTimer();
+  };
+  const handleResume = (entryId: string) => {
+    // Cancel any pending debounced update from the previous entry
+    if (descriptionCommitRef.current) {
+      clearTimeout(descriptionCommitRef.current);
+      descriptionCommitRef.current = null;
+    }
+    data.resumeTimer(entryId);
+  };
+
+  // Description update — debounced API call
+  const handleDescriptionChange = useCallback(
+    (desc: string) => {
+      setDescription(desc);
+      if (!data.timer.running || !data.timer.entry) return;
+      if (descriptionCommitRef.current) clearTimeout(descriptionCommitRef.current);
+      descriptionCommitRef.current = setTimeout(() => {
+        updateTimerRef.current({ description: desc });
+      }, 500);
+    },
+    [data.timer.running, data.timer.entry],
+  );
+
+  // Flush debounced description immediately (Enter key)
+  const handleDescriptionCommit = useCallback(() => {
+    if (descriptionCommitRef.current) {
+      clearTimeout(descriptionCommitRef.current);
+      descriptionCommitRef.current = null;
+    }
+    if (data.timer.running && data.timer.entry) {
+      updateTimerRef.current({ description });
+    }
+  }, [data.timer.running, data.timer.entry, description]);
+
+  // Project change — immediate sync to API while running
+  const handleProjectSelect = useCallback(
+    (project: ProjectOption | null) => {
+      setSelectedProject(project);
+      if (!data.timer.running || !data.timer.entry) return;
+      updateTimerRef.current({ projectId: project?.id ?? null });
+    },
+    [data.timer.running, data.timer.entry],
+  );
 
   if (data.isLoading) {
     return (
@@ -115,7 +186,37 @@ function TimerView({
     );
   }
 
-  const LayoutComponent = layout === 'layered' ? LayeredLayout : HeroLayout;
+  // Compute effective entry — merge local description so the list reflects edits in real-time.
+  // Only override description (debounced). Project changes go through patchTimerLocal which
+  // updates data.timer.entry directly, so no need to overlay project fields here.
+  const effectiveEntry: Entry | null = (() => {
+    const entry = data.timer.entry;
+    if (!entry) return null;
+    const synced = lastSyncedEntryIdRef.current === entry.id;
+    if (!synced) return entry; // Before sync, show server data as-is
+    return { ...entry, description };
+  })();
+
+  const layoutProps: LayoutProps = {
+    timerRunning: data.timer.running,
+    elapsed,
+    currentEntry: effectiveEntry,
+    onStart: handleStart,
+    onStop: handleStop,
+    onResume: handleResume,
+    selectedProject,
+    onProjectSelect: handleProjectSelect,
+    description,
+    onDescriptionChange: handleDescriptionChange,
+    onDescriptionCommit: handleDescriptionCommit,
+    entries: data.entries,
+    stats: data.stats,
+    projects: data.projects,
+    webAppUrl: environmentConfig.webAppUrl,
+  };
+
+  const LayoutComponent =
+    layout === 'hero' ? HeroLayout : layout === 'layered' ? LayeredLayout : LiquidGlassLayout;
 
   return (
     <>
@@ -131,22 +232,7 @@ function TimerView({
           )}
         </AnimatePresence>
       </div>
-      <LayoutComponent
-        timerRunning={data.timer.running}
-        elapsed={elapsed}
-        currentEntry={data.timer.entry}
-        onStart={handleStart}
-        onStop={handleStop}
-        onResume={handleResume}
-        selectedProject={selectedProject}
-        onProjectSelect={setSelectedProject}
-        description={description}
-        onDescriptionChange={setDescription}
-        entries={data.entries}
-        stats={data.stats}
-        projects={data.projects}
-        webAppUrl={environmentConfig.webAppUrl}
-      />
+      <LayoutComponent {...layoutProps} />
     </>
   );
 }
@@ -155,13 +241,12 @@ function TimerView({
 // TrayPopup — main shell (resize, settings panel, auth gating)
 // ============================================================
 
-const BASE_WIDTH = 345;
+const BASE_WIDTH = 420;
 const BASE_SETTINGS_WIDTH = 240;
 
 export function TrayPopup() {
   const { scale } = useScale();
   const { isAuthenticated, isLoading } = useAuth();
-  const [layout, setLayout] = useState<LayoutType>('layered');
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsOpenRef = useRef(false);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -231,6 +316,14 @@ export function TrayPopup() {
         fontFamily: "'Inter', system-ui, sans-serif",
       }}
     >
+      {/* Subtle ambient glow behind glass cards */}
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            'radial-gradient(ellipse at 50% 30%, hsl(var(--primary) / 0.03) 0%, transparent 70%)',
+        }}
+      />
       <div className="flex">
         {/* Main popup column — stable ref for ResizeObserver */}
         <div ref={contentRef} style={{ width: popupWidth, flexShrink: 0 }}>
@@ -256,7 +349,7 @@ export function TrayPopup() {
                 transition={{ duration: 0.2 }}
               >
                 <DataProvider>
-                  <TimerView layout={layout} onSettingsClick={handleSettingsToggle} />
+                  <TimerView onSettingsClick={handleSettingsToggle} />
                 </DataProvider>
               </motion.div>
             )}
@@ -270,11 +363,7 @@ export function TrayPopup() {
             style={{ width: scaled(240) }}
           >
             <div style={{ width: scaled(240) }}>
-              <SettingsContent
-                layout={layout}
-                onLayoutChange={setLayout}
-                onClose={handleSettingsToggle}
-              />
+              <SettingsContent onClose={handleSettingsToggle} />
             </div>
           </div>
         )}

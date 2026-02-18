@@ -1,5 +1,6 @@
 import { motion } from 'motion/react';
 import { Play } from 'lucide-react';
+// motion used for pulsing dot animation only
 import { scaled } from '@/lib/scaled';
 import type { Entry, DayGroup } from '@/lib/api-types';
 import { formatDuration } from './tray-popup';
@@ -22,10 +23,47 @@ function formatDateLabel(dateStr: string): string {
 }
 
 export function EntriesList({ currentEntry, entries, onResume }: EntriesListProps) {
+  // Merge running entry into the entries list:
+  // - Replace matching entry with currentEntry (has live local edits)
+  // - Inject at top of today if not found (new entry not yet in API response)
+  const enrichedEntries = (() => {
+    const seenIds = new Set<string>();
+    let found = false;
+
+    const copy = entries.map((day) => ({
+      ...day,
+      entries: day.entries.reduce<Entry[]>((acc, e) => {
+        // Deduplicate
+        if (seenIds.has(e.id)) return acc;
+        seenIds.add(e.id);
+        if (currentEntry && e.id === currentEntry.id) {
+          found = true;
+          acc.push(currentEntry);
+        } else {
+          acc.push(e);
+        }
+        return acc;
+      }, []),
+    }));
+
+    // Inject running entry into today's group if not present in the list yet
+    if (currentEntry && !found) {
+      const today = new Date().toISOString().split('T')[0];
+      const todayGroup = copy.find((day) => day.date === today);
+      if (todayGroup) {
+        todayGroup.entries.unshift(currentEntry);
+      } else {
+        copy.unshift({ date: today, totalSeconds: 0, entries: [currentEntry] });
+      }
+    }
+
+    return copy;
+  })();
+
   return (
     <div>
-      <div style={{ maxHeight: scaled(260), overflowY: 'auto' }}>
-        {entries.map((day, dayIdx) => (
+      <div style={{ maxHeight: scaled(300), overflowY: 'auto', overflowX: 'hidden' }}>
+        {enrichedEntries.map((day, dayIdx) => (
           <DayGroupRow
             key={day.date}
             day={day}
@@ -39,17 +77,23 @@ export function EntriesList({ currentEntry, entries, onResume }: EntriesListProp
   );
 }
 
-function DayHeader({ label }: { label: string }) {
+function DayHeader({ label, duration }: { label: string; duration: string }) {
   return (
     <div
-      className="sticky top-0 z-10 flex items-center justify-between bg-background/95 backdrop-blur-sm"
-      style={{ padding: `${scaled(6)} ${scaled(16)} ${scaled(4)}` }}
+      className="sticky top-0 z-10 flex items-center justify-between backdrop-blur-sm"
+      style={{ padding: `${scaled(6)} ${scaled(14)} ${scaled(3)}`, background: 'hsl(var(--card) / 0.85)' }}
     >
       <span
-        className="font-brand uppercase tracking-widest text-muted-foreground"
+        className="font-brand uppercase tracking-widest text-muted-foreground/60"
         style={{ fontSize: scaled(8), letterSpacing: '1.5px' }}
       >
         {label}
+      </span>
+      <span
+        className="font-brand tabular-nums text-muted-foreground/40"
+        style={{ fontSize: scaled(9) }}
+      >
+        {duration}
       </span>
     </div>
   );
@@ -91,7 +135,7 @@ function EntryRow({
         <div className="absolute inset-0 rounded-full" style={{ background: color }} />
       </div>
 
-      {/* Description + project */}
+      {/* Description + client › project */}
       <div className="min-w-0 flex-1">
         <div
           className={`truncate ${isRunning ? 'font-medium text-foreground' : 'text-foreground'}`}
@@ -99,8 +143,25 @@ function EntryRow({
         >
           {entry.description || 'Untitled entry'}
         </div>
-        <div className="text-muted-foreground" style={{ fontSize: scaled(10) }}>
-          {entry.projectName ?? 'No project'}
+        <div
+          className="flex items-center truncate text-muted-foreground"
+          style={{ fontSize: scaled(10), gap: scaled(4) }}
+        >
+          {entry.clientName ? (
+            <>
+              <span className="truncate">{entry.clientName}</span>
+              {entry.projectName && (
+                <>
+                  <span className="shrink-0 text-muted-foreground/30">›</span>
+                  <span className="truncate">{entry.projectName}</span>
+                </>
+              )}
+            </>
+          ) : entry.projectName ? (
+            <span className="truncate">{entry.projectName}</span>
+          ) : (
+            <span className="italic opacity-50">No project</span>
+          )}
         </div>
       </div>
 
@@ -153,11 +214,10 @@ function DayGroupRow({
     <>
       {!isFirst && (
         <div
-          className="border-t border-border/50"
-          style={{ margin: `${scaled(2)} ${scaled(16)}` }}
+          style={{ margin: `${scaled(1)} ${scaled(14)}`, borderTop: '1px solid hsl(var(--border) / 0.08)' }}
         />
       )}
-      <DayHeader label={`${formatDateLabel(day.date)} — ${formatDuration(day.totalSeconds)}`} />
+      <DayHeader label={formatDateLabel(day.date)} duration={formatDuration(day.totalSeconds)} />
       {day.entries.map((entry) => (
         <EntryRow
           key={entry.id}

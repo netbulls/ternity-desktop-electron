@@ -9,7 +9,7 @@ import {
 } from 'react';
 import { useAuth } from './auth-provider';
 import { apiFetch, ApiError } from '@/lib/api';
-import type { TimerState, DayGroup, Stats, ProjectOption, UserProfile } from '@/lib/api-types';
+import type { Entry, TimerState, DayGroup, Stats, ProjectOption, UserProfile } from '@/lib/api-types';
 
 interface DataContextValue {
   timer: TimerState;
@@ -22,6 +22,8 @@ interface DataContextValue {
   startTimer: (params: { description?: string; projectId?: string }) => Promise<void>;
   stopTimer: () => Promise<void>;
   resumeTimer: (entryId: string) => Promise<void>;
+  updateTimer: (params: { description?: string; projectId?: string | null }) => Promise<void>;
+  patchTimerLocal: (params: { description?: string; projectId?: string | null }) => void;
 }
 
 const DEFAULT_TIMER: TimerState = { running: false, entry: null };
@@ -49,6 +51,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(!isDemo);
   const [error, setError] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const timerDirtyUntilRef = useRef<number>(0); // timestamp — suppress poll overwrites until this time
 
   // Stop polling immediately when auth state changes
   useEffect(() => {
@@ -92,8 +95,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
       apiFetch<TimerState>(apiBaseUrl, environment, '/api/timer'),
       apiFetch<Stats>(apiBaseUrl, environment, '/api/stats'),
     ]);
-    setTimer(timerRes);
-    setStats(statsRes);
+    // Don't overwrite optimistic timer updates — wait until the dirty window expires
+    if (Date.now() < timerDirtyUntilRef.current) {
+      // Only update stats, keep the local timer state
+      setStats(statsRes);
+    } else {
+      setTimer(timerRes);
+      setStats(statsRes);
+    }
     setError(null);
     authFailuresRef.current = 0;
   }, [apiBaseUrl, environment]);
@@ -179,6 +188,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const stopTimer = useCallback(async () => {
     try {
+      timerDirtyUntilRef.current = 0; // Clear dirty window so refetch applies
       await apiFetch<TimerState>(apiBaseUrl, environment, '/api/timer/stop', { method: 'POST' });
       await refetchAfterMutation();
     } catch (err) {
@@ -189,6 +199,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const resumeTimer = useCallback(
     async (entryId: string) => {
       try {
+        timerDirtyUntilRef.current = 0; // Clear dirty window so refetch applies
         await apiFetch<TimerState>(apiBaseUrl, environment, `/api/timer/resume/${entryId}`, {
           method: 'POST',
         });
@@ -198,6 +209,53 @@ export function DataProvider({ children }: { children: ReactNode }) {
       }
     },
     [apiBaseUrl, environment, refetchAfterMutation, handleApiError],
+  );
+
+  const patchTimerLocal = useCallback(
+    (params: { description?: string; projectId?: string | null }) => {
+      // Suppress poll overwrites for 6s after an optimistic update
+      // (covers 500ms debounce + API roundtrip + one 5s poll cycle)
+      timerDirtyUntilRef.current = Date.now() + 6000;
+      setTimer((prev) => {
+        if (!prev.entry) return prev;
+        const patch: Partial<Entry> = {};
+        if (params.description !== undefined) patch.description = params.description;
+        if (params.projectId !== undefined) {
+          if (params.projectId === null) {
+            patch.projectId = null;
+            patch.projectName = null;
+            patch.projectColor = null;
+            patch.clientName = null;
+          } else {
+            const proj = projects.find((p) => p.id === params.projectId);
+            if (proj) {
+              patch.projectId = proj.id;
+              patch.projectName = proj.name;
+              patch.projectColor = proj.color;
+              patch.clientName = proj.clientName;
+            }
+          }
+        }
+        return { ...prev, entry: { ...prev.entry, ...patch } };
+      });
+    },
+    [projects],
+  );
+
+  const updateTimer = useCallback(
+    async (params: { description?: string; projectId?: string | null }) => {
+      if (!timer.running || !timer.entry) return;
+      patchTimerLocal(params);
+      try {
+        await apiFetch(apiBaseUrl, environment, `/api/entries/${timer.entry.id}`, {
+          method: 'PATCH',
+          body: params,
+        });
+      } catch (err) {
+        console.warn('[data] updateTimer failed:', err instanceof Error ? err.message : err);
+      }
+    },
+    [apiBaseUrl, environment, timer.running, timer.entry, patchTimerLocal],
   );
 
   return (
@@ -213,6 +271,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
         startTimer,
         stopTimer,
         resumeTimer,
+        updateTimer,
+        patchTimerLocal,
       }}
     >
       {children}

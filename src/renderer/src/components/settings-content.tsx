@@ -1,24 +1,21 @@
 import { useState, useEffect } from 'react';
-import { Layers, Target, Keyboard, X, LogOut } from 'lucide-react';
+import { Keyboard, X, LogOut } from 'lucide-react';
 import { scaled } from '@/lib/scaled';
 import { THEMES, type ThemeId } from '@/lib/themes';
 import { SCALES, useScale } from '@/providers/scale-provider';
 import { useTheme } from '@/providers/theme-provider';
+import { LAYOUTS, useLayout, type LayoutId } from '@/providers/layout-provider';
 import { useAuth } from '@/providers/auth-provider';
 import { useOptionalData } from '@/providers/data-provider';
-import type { LayoutType } from './tray-popup';
 
 export function SettingsContent({
-  layout,
-  onLayoutChange,
   onClose,
 }: {
-  layout: LayoutType;
-  onLayoutChange: (l: LayoutType) => void;
   onClose: () => void;
 }) {
   const { theme, setTheme } = useTheme();
   const { scale, setScale } = useScale();
+  const { layout, setLayout } = useLayout();
   const { environmentConfig, user, signOut } = useAuth();
   const data = useOptionalData();
   const [startAtLogin, setStartAtLogin] = useState(false);
@@ -64,40 +61,6 @@ export function SettingsContent({
         className="mb-3 rounded-md border border-border bg-card"
         style={{ fontSize: scaled(10) }}
       >
-        {/* Layout */}
-        <div
-          className="flex items-center justify-between border-b border-border/50"
-          style={{ padding: `${scaled(7)} ${scaled(10)}` }}
-        >
-          <span className="text-muted-foreground">Layout</span>
-          <div className="flex" style={{ gap: scaled(3) }}>
-            {(
-              [
-                ['layered', 'Layered', Layers],
-                ['hero', 'Hero', Target],
-              ] as const
-            ).map(([key, label, Icon]) => (
-              <button
-                key={key}
-                className={`flex items-center rounded-md transition-colors ${
-                  layout === key
-                    ? 'bg-primary/15 text-primary'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-                style={{
-                  gap: scaled(4),
-                  padding: `${scaled(3)} ${scaled(8)}`,
-                  fontSize: scaled(10),
-                }}
-                onClick={() => onLayoutChange(key)}
-              >
-                <Icon style={{ width: scaled(11), height: scaled(11) }} />
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
-
         {/* Theme */}
         <div
           className="flex items-center justify-between border-b border-border/50"
@@ -113,6 +76,26 @@ export function SettingsContent({
             {THEMES.map((t) => (
               <option key={t.id} value={t.id}>
                 {t.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Layout */}
+        <div
+          className="flex items-center justify-between border-b border-border/50"
+          style={{ padding: `${scaled(7)} ${scaled(10)}` }}
+        >
+          <span className="text-muted-foreground">Layout</span>
+          <select
+            className="cursor-pointer rounded-md border-none bg-transparent text-right text-foreground outline-none"
+            style={{ fontSize: scaled(10), padding: `${scaled(2)} 0` }}
+            value={layout}
+            onChange={(e) => setLayout(e.target.value as LayoutId)}
+          >
+            {LAYOUTS.map((l) => (
+              <option key={l.id} value={l.id}>
+                {l.name}
               </option>
             ))}
           </select>

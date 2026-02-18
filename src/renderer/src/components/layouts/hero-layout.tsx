@@ -88,6 +88,7 @@ export function HeroLayout({
   onProjectSelect,
   description,
   onDescriptionChange,
+  onDescriptionCommit,
   entries,
   stats,
   projects,
@@ -169,6 +170,17 @@ export function HeroLayout({
                   placeholder="What are you working on?"
                   value={description}
                   onChange={(e) => onDescriptionChange(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      (e.target as HTMLInputElement).blur();
+                      if (timerRunning) {
+                        onDescriptionCommit();
+                      } else {
+                        onStart();
+                      }
+                    }
+                  }}
                 />
               </motion.div>
             )}
