@@ -74,7 +74,7 @@ export function SettingsContent({
             onChange={(e) => setTheme(e.target.value as ThemeId)}
           >
             {THEMES.map((t) => (
-              <option key={t.id} value={t.id}>
+              <option key={t.id} value={t.id} className="bg-card text-foreground">
                 {t.name}
               </option>
             ))}
@@ -94,7 +94,7 @@ export function SettingsContent({
             onChange={(e) => setLayout(e.target.value as LayoutId)}
           >
             {LAYOUTS.map((l) => (
-              <option key={l.id} value={l.id}>
+              <option key={l.id} value={l.id} className="bg-card text-foreground">
                 {l.name}
               </option>
             ))}
@@ -114,7 +114,7 @@ export function SettingsContent({
             onChange={(e) => setScale(Number(e.target.value))}
           >
             {SCALES.map((s) => (
-              <option key={s.label} value={s.value}>
+              <option key={s.label} value={s.value} className="bg-card text-foreground">
                 {s.label}
               </option>
             ))}

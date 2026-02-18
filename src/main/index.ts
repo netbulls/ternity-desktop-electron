@@ -14,9 +14,33 @@ import { ENVIRONMENTS, type EnvironmentId } from './environments';
 
 const log = createLogger('app');
 const apiLog = createLogger('api');
+const isLinux = process.platform === 'linux';
 
 let tray: Tray | null = null;
 let popup: BrowserWindow | null = null;
+
+// Linux: persist window position since tray.getBounds() always returns {0,0,0,0}
+let savedPosition: { x: number; y: number } | null = null;
+
+// Linux: suppress blur briefly after tray click (GNOME fires blur immediately after show)
+let blurSuppressedUntil = 0;
+
+function loadSavedPosition(): void {
+  if (!isLinux) return;
+  const config = readConfig();
+  if (config.windowX != null && config.windowY != null) {
+    savedPosition = { x: config.windowX as number, y: config.windowY as number };
+  }
+}
+
+function savePosition(x: number, y: number): void {
+  if (!isLinux) return;
+  savedPosition = { x, y };
+  const config = readConfig();
+  config.windowX = x;
+  config.windowY = y;
+  writeConfig(config);
+}
 
 function createPopup(): BrowserWindow {
   const win = new BrowserWindow({
@@ -24,15 +48,16 @@ function createPopup(): BrowserWindow {
     height: 520,
     frame: false,
     resizable: false,
+    movable: true,
     skipTaskbar: true,
     show: false,
     transparent: false,
-    titleBarStyle: 'hidden',
-    trafficLightPosition: { x: -20, y: -20 },
+    titleBarStyle: process.platform === 'darwin' ? 'hidden' : undefined,
+    trafficLightPosition: process.platform === 'darwin' ? { x: -20, y: -20 } : undefined,
     roundedCorners: true,
     hasShadow: true,
     backgroundColor: '#0a0a0a',
-    visibleOnAllWorkspaces: true,
+    visibleOnAllWorkspaces: !isLinux,
     type: process.platform === 'darwin' ? 'panel' : undefined,
     webPreferences: {
       preload: join(__dirname, '../preload/index.cjs'),
@@ -48,6 +73,7 @@ function createPopup(): BrowserWindow {
 
   // Hide on blur (click outside) — standard tray app behavior
   win.on('blur', () => {
+    if (Date.now() < blurSuppressedUntil) return;
     win.hide();
   });
 
@@ -58,6 +84,15 @@ function createPopup(): BrowserWindow {
     }
   });
 
+  // Linux: save position when user moves the window
+  if (isLinux) {
+    win.on('moved', () => {
+      const [x, y] = win.getPosition();
+      savePosition(x, y);
+      log.debug('Window moved to', { x, y });
+    });
+  }
+
   return win;
 }
 
@@ -66,14 +101,35 @@ function positionPopup(): void {
 
   const trayBounds = tray.getBounds();
   const windowBounds = popup.getBounds();
-  const display = screen.getDisplayNearestPoint({
-    x: trayBounds.x,
-    y: trayBounds.y,
-  });
+  const hasTrayBounds = trayBounds.width > 0 && trayBounds.height > 0;
 
-  // macOS: center below tray icon
-  const x = Math.round(trayBounds.x + trayBounds.width / 2 - windowBounds.width / 2);
-  const y = Math.round(trayBounds.y + trayBounds.height + 4);
+  // Linux: use saved position if available (tray bounds are always {0,0,0,0} on GNOME/Wayland)
+  if (!hasTrayBounds && savedPosition) {
+    // Validate saved position is still on-screen
+    const display = screen.getDisplayNearestPoint(savedPosition);
+    const wa = display.workArea;
+    const x = Math.max(wa.x, Math.min(savedPosition.x, wa.x + wa.width - windowBounds.width));
+    const y = Math.max(wa.y, Math.min(savedPosition.y, wa.y + wa.height - windowBounds.height));
+    popup.setPosition(x, y);
+    return;
+  }
+
+  const display = hasTrayBounds
+    ? screen.getDisplayNearestPoint({ x: trayBounds.x, y: trayBounds.y })
+    : screen.getPrimaryDisplay();
+
+  let x: number;
+  let y: number;
+
+  if (hasTrayBounds) {
+    // Center below tray icon
+    x = Math.round(trayBounds.x + trayBounds.width / 2 - windowBounds.width / 2);
+    y = Math.round(trayBounds.y + trayBounds.height + 4);
+  } else {
+    // Fallback: top-right corner of work area
+    x = display.workArea.x + display.workArea.width - windowBounds.width - 8;
+    y = display.workArea.y + 8;
+  }
 
   // Clamp to screen bounds
   const clampedX = Math.max(
@@ -88,56 +144,79 @@ function positionPopup(): void {
   popup.setPosition(clampedX, clampedY);
 }
 
+function showPopup(): void {
+  if (!popup) return;
+  if (isLinux) blurSuppressedUntil = Date.now() + 300;
+  if (process.platform === 'darwin') {
+    popup.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+    popup.setAlwaysOnTop(true, 'pop-up-menu');
+  } else {
+    popup.setAlwaysOnTop(true);
+  }
+  positionPopup();
+  popup.show();
+  popup.focus();
+}
+
 function togglePopup(): void {
   if (!popup) return;
-
   if (popup.isVisible()) {
     popup.hide();
   } else {
-    // Move window to the current Space and set as popup-level so macOS
-    // correctly routes blur events even in fullscreen Spaces.
-    popup.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-    popup.setAlwaysOnTop(true, 'pop-up-menu');
-    positionPopup();
-    popup.show();
-    popup.focus();
+    showPopup();
   }
 }
 
+function getTrayIconName(): string {
+  if (!isLinux) return 'trayTemplate.png';
+  // Linux: template images don't auto-invert. GNOME/KDE panels are dark
+  // across all major distros, so always use the white icon.
+  return 'trayLight.png';
+}
+
 function createTray(): void {
-  const trayIconPath = join(
-    app.isPackaged ? process.resourcesPath : join(__dirname, '../../resources'),
-    'trayTemplate.png',
-  );
+  const resourceDir = app.isPackaged ? process.resourcesPath : join(__dirname, '../../resources');
+  const trayIconPath = join(resourceDir, getTrayIconName());
 
   const trayImage = nativeImage.createFromPath(trayIconPath);
-  trayImage.setTemplateImage(true);
+  if (!isLinux) trayImage.setTemplateImage(true);
 
   tray = new Tray(trayImage);
   tray.setToolTip('Ternity');
-  tray.on('click', togglePopup);
 
-  // Right-click context menu
+  tray.on('click', togglePopup);
+  tray.on('double-click', togglePopup);
+
   const contextMenu = Menu.buildFromTemplate([
+    ...(isLinux
+      ? [
+          { label: 'Open', click: () => showPopup() } as Electron.MenuItemConstructorOptions,
+          { type: 'separator' as const },
+        ]
+      : []),
     {
       label: 'Start at Login',
-      type: 'checkbox',
+      type: 'checkbox' as const,
       checked: app.getLoginItemSettings().openAtLogin,
-      click: (menuItem) => {
+      click: (menuItem: Electron.MenuItem) => {
         app.setLoginItemSettings({ openAtLogin: menuItem.checked });
       },
     },
-    { type: 'separator' },
+    { type: 'separator' as const },
     {
-      label: 'Quit Ternity',
+      label: 'Quit',
       click: () => app.quit(),
     },
   ]);
-  tray.on('right-click', () => {
-    // Refresh the checkbox state each time the menu opens
-    contextMenu.items[0].checked = app.getLoginItemSettings().openAtLogin;
-    tray?.popUpContextMenu(contextMenu);
-  });
+
+  if (isLinux) {
+    tray.setContextMenu(contextMenu);
+  } else {
+    tray.on('right-click', () => {
+      contextMenu.items[0].checked = app.getLoginItemSettings().openAtLogin;
+      tray?.popUpContextMenu(contextMenu);
+    });
+  }
 }
 
 app.whenReady().then(() => {
@@ -148,20 +227,35 @@ app.whenReady().then(() => {
     app.dock.hide();
   }
 
+  loadSavedPosition();
   createTray();
   popup = createPopup();
 
-  // Show popup on launch
-  popup.once('ready-to-show', () => {
-    positionPopup();
-    popup!.show();
-    popup!.focus();
-  });
+  // Show popup on launch (skip on Linux — tray click will open it,
+  // and auto-showing causes the first tray click to toggle it off)
+  if (!isLinux) {
+    popup.once('ready-to-show', () => {
+      positionPopup();
+      popup!.show();
+      popup!.focus();
+    });
+  }
 
   // IPC: resize window (for settings expand)
   ipcMain.on('resize-window', (_event, width: number, height: number) => {
     if (!popup) return;
-    popup.setSize(Math.round(width), Math.round(height), true);
+    const w = Math.round(width);
+    const h = Math.round(height);
+    if (isLinux) {
+      // Linux: setSize can't shrink a non-resizable window,
+      // so temporarily allow resize, update min size, resize, then lock again
+      popup.setResizable(true);
+      popup.setMinimumSize(w, h);
+      popup.setSize(w, h);
+      popup.setResizable(false);
+    } else {
+      popup.setSize(w, h, true);
+    }
   });
 
   // IPC: environment persistence

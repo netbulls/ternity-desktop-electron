@@ -6,7 +6,7 @@ export function PopupHeader({ onSettingsClick }: { onSettingsClick: () => void }
   return (
     <div
       className="flex items-center justify-between border-b border-border"
-      style={{ padding: `${scaled(12)} ${scaled(16)}` }}
+      style={{ padding: `${scaled(12)} ${scaled(16)}`, WebkitAppRegion: 'drag' } as React.CSSProperties}
     >
       <div
         className="flex items-center font-brand font-semibold uppercase tracking-widest text-primary"
@@ -17,7 +17,7 @@ export function PopupHeader({ onSettingsClick }: { onSettingsClick: () => void }
       </div>
       <button
         className="flex items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-        style={{ width: scaled(24), height: scaled(24) }}
+        style={{ width: scaled(24), height: scaled(24), WebkitAppRegion: 'no-drag' } as React.CSSProperties}
         onClick={onSettingsClick}
       >
         <Settings style={{ width: scaled(14), height: scaled(14) }} />

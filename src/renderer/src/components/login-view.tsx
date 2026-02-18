@@ -11,7 +11,7 @@ export function LoginView() {
   return (
     <div
       className="flex flex-col items-center justify-center text-center"
-      style={{ padding: `${scaled(40)} ${scaled(24)}` }}
+      style={{ padding: `${scaled(40)} ${scaled(24)}`, WebkitAppRegion: 'drag' } as React.CSSProperties}
     >
       <div className="mb-4 text-primary" style={{ opacity: 0.5 }}>
         <HourglassLogo size={40} />
@@ -27,7 +27,7 @@ export function LoginView() {
       </div>
 
       {/* Environment selector */}
-      <div className="mb-6 flex w-full justify-center" style={{ gap: scaled(6) }}>
+      <div className="mb-6 flex w-full justify-center" style={{ gap: scaled(6), WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
         {ENVIRONMENT_LIST.map((env) => (
           <button
             key={env.id}
@@ -46,7 +46,7 @@ export function LoginView() {
       </div>
 
       {isSigningIn ? (
-        <>
+        <div style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
           <div
             className="flex items-center text-muted-foreground"
             style={{ fontSize: scaled(12), gap: scaled(8) }}
@@ -64,9 +64,9 @@ export function LoginView() {
           >
             Cancel
           </button>
-        </>
+        </div>
       ) : (
-        <>
+        <div style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
           <motion.button
             className="flex items-center rounded-lg bg-primary px-6 py-2.5 font-medium text-primary-foreground transition-colors"
             style={{ fontSize: scaled(12), gap: scaled(6) }}
@@ -84,7 +84,7 @@ export function LoginView() {
           >
             Continue as demo
           </button>
-        </>
+        </div>
       )}
 
       <div className="mt-6 text-muted-foreground/40" style={{ fontSize: scaled(9) }}>
