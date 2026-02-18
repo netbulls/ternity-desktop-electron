@@ -1,0 +1,90 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <!-- Shadow filter -->
+    <filter id="shadow" x="-10%" y="-5%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="12" stdDeviation="24" flood-color="#000" flood-opacity="0.5"/>
+    </filter>
+
+    <!-- Subtle inner glow on the squircle -->
+    <radialGradient id="bgGrad" cx="50%" cy="35%" r="70%">
+      <stop offset="0%" stop-color="#1a1a1a"/>
+      <stop offset="100%" stop-color="#0a0a0a"/>
+    </radialGradient>
+
+    <!-- Teal glow behind the hourglass -->
+    <radialGradient id="glowGrad" cx="50%" cy="45%" r="35%">
+      <stop offset="0%" stop-color="#00D4AA" stop-opacity="0.12"/>
+      <stop offset="100%" stop-color="#00D4AA" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- macOS squircle clip path (superellipse approximation) -->
+    <clipPath id="squircle">
+      <path d="
+        M 512 60
+        C 764 60 840 60 893 113
+        C 946 166 964 260 964 512
+        C 964 764 946 858 893 911
+        C 840 964 764 964 512 964
+        C 260 964 184 964 131 911
+        C 78 858 60 764 60 512
+        C 60 260 78 166 131 113
+        C 184 60 260 60 512 60 Z
+      "/>
+    </clipPath>
+
+    <!-- Squircle border shape (same as clip but as a stroke path) -->
+    <path id="squirclePath" d="
+      M 512 60
+      C 764 60 840 60 893 113
+      C 946 166 964 260 964 512
+      C 964 764 946 858 893 911
+      C 840 964 764 964 512 964
+      C 260 964 184 964 131 911
+      C 78 858 60 764 60 512
+      C 60 260 78 166 131 113
+      C 184 60 260 60 512 60 Z
+    "/>
+  </defs>
+
+  <!-- Drop shadow behind squircle -->
+  <use href="#squirclePath" fill="#000" filter="url(#shadow)" opacity="0.6"/>
+
+  <!-- Squircle body -->
+  <g clip-path="url(#squircle)">
+    <!-- Background gradient -->
+    <rect width="1024" height="1024" fill="url(#bgGrad)"/>
+
+    <!-- Subtle teal ambient glow -->
+    <rect width="1024" height="1024" fill="url(#glowGrad)"/>
+
+    <!-- Hourglass — same as app icon -->
+    <g transform="translate(512, 460) scale(6.467) translate(-50, -50)">
+      <path
+        d="M18 5 L82 5 L62 48 L82 95 L18 95 L38 48Z"
+        stroke="#00D4AA"
+        stroke-width="5"
+        fill="none"
+        stroke-linejoin="round"
+      />
+      <circle cx="50" cy="32" r="6" fill="#00D4AA"/>
+      <circle cx="49" cy="52" r="7.5" fill="#00D4AA"/>
+      <circle cx="54" cy="67" r="5.5" fill="#00D4AA"/>
+      <circle cx="44" cy="77" r="7" fill="#00D4AA"/>
+      <circle cx="56" cy="83" r="6" fill="#00D4AA"/>
+    </g>
+  </g>
+
+  <!-- Thin border on the squircle for definition -->
+  <use href="#squirclePath" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="2"/>
+
+  <!-- Install arrow badge (bottom-right) -->
+  <g transform="translate(760, 760)">
+    <!-- Badge circle -->
+    <circle cx="0" cy="0" r="100" fill="#0a0a0a" stroke="rgba(255,255,255,0.1)" stroke-width="2"/>
+    <circle cx="0" cy="0" r="96" fill="#00D4AA"/>
+    <!-- Down arrow -->
+    <path d="M0 -45 L0 25 M-30 0 L0 30 L30 0" stroke="#0a0a0a" stroke-width="14" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    <!-- Base line -->
+    <line x1="-32" y1="48" x2="32" y2="48" stroke="#0a0a0a" stroke-width="10" stroke-linecap="round"/>
+  </g>
+</svg>

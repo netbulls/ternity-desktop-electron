@@ -43,6 +43,7 @@ VOLUME_NAME="Ternity Desktop"
 # --- Config ---
 BG_IMAGE="$RESOURCES_DIR/dmg-background.png"
 ICON_FILE="$RESOURCES_DIR/icon.icns"
+DMG_ICON_FILE="$RESOURCES_DIR/dmg-icon.icns"
 WINDOW_WIDTH=660
 WINDOW_HEIGHT=400
 ICON_SIZE=80
@@ -55,6 +56,7 @@ echo "  Background: $BG_IMAGE"
 [ -f "$DMG_PATH" ] && rm "$DMG_PATH"
 TEMP_DMG="$DIST_DIR/_temp.dmg"
 [ -f "$TEMP_DMG" ] && rm "$TEMP_DMG"
+[ -f "${TEMP_DMG}.sparseimage" ] && rm "${TEMP_DMG}.sparseimage"
 
 # Eject if already mounted
 hdiutil detach "/Volumes/$VOLUME_NAME" 2>/dev/null || true
@@ -102,6 +104,7 @@ tell application "Finder"
     set theViewOptions to the icon view options of container window
     set arrangement of theViewOptions to not arranged
     set icon size of theViewOptions to $ICON_SIZE
+    set text size of theViewOptions to 12
     set background picture of theViewOptions to file ".background:background.png"
     set position of item "$APP_NAME" of container window to {180, 280}
     set position of item "Applications" of container window to {480, 280}
@@ -128,6 +131,15 @@ hdiutil convert "${TEMP_DMG}.sparseimage" \
 
 # Clean up
 rm -f "${TEMP_DMG}.sparseimage"
+
+# --- Set custom DMG icon ---
+echo "  Setting DMG icon..."
+sips -i "$DMG_ICON_FILE" >/dev/null 2>&1 || true
+DeRez -only icns "$DMG_ICON_FILE" > /tmp/_dmg_icon.rsrc 2>/dev/null
+Rez -append /tmp/_dmg_icon.rsrc -o "$DMG_PATH" 2>/dev/null
+SetFile -a C "$DMG_PATH" 2>/dev/null
+rm -f /tmp/_dmg_icon.rsrc
+echo "  DMG icon set"
 
 # --- Sign the DMG ---
 SIGNING_IDENTITY="Developer ID Application: NETBULLS S C (9374FZ3B8X)"
