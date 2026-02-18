@@ -83,8 +83,30 @@ try {
   });
   console.log(`\nDMG created: dist/${dmgName}`);
 } finally {
-  // Clean up temp config
-  if (existsSync(configPath)) {
-    unlinkSync(configPath);
-  }
+  if (existsSync(configPath)) unlinkSync(configPath);
 }
+
+// --- Sign ---
+const signingIdentity = 'Developer ID Application: NETBULLS S C (9374FZ3B8X)';
+console.log('  Signing DMG...');
+execSync(`codesign --sign "${signingIdentity}" "${dmgPath}"`, { stdio: 'inherit' });
+execSync(`codesign --verify --verbose "${dmgPath}"`, { stdio: 'inherit' });
+console.log('  DMG signed');
+
+// --- Notarize + staple (if credentials available) ---
+const { APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID } = process.env;
+if (APPLE_ID && APPLE_APP_SPECIFIC_PASSWORD && APPLE_TEAM_ID) {
+  console.log('  Submitting DMG for notarization...');
+  execSync(
+    `xcrun notarytool submit "${dmgPath}" --apple-id "${APPLE_ID}" --password "${APPLE_APP_SPECIFIC_PASSWORD}" --team-id "${APPLE_TEAM_ID}" --wait`,
+    { stdio: 'inherit' }
+  );
+  console.log('  Stapling notarization ticket...');
+  execSync(`xcrun stapler staple "${dmgPath}"`, { stdio: 'inherit' });
+  console.log('  DMG notarized and stapled');
+} else {
+  console.log('  Skipping notarization (APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD / APPLE_TEAM_ID not set)');
+}
+
+const size = execSync(`du -sh "${dmgPath}"`).toString().split('\t')[0];
+console.log(`\nDMG ready: dist/${dmgName}  (${size})`);

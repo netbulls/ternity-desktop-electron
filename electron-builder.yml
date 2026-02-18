@@ -21,3 +21,13 @@ mac:
   # Notarization: auto-triggers when APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD,
   # and APPLE_TEAM_ID env vars are set. Run: source .env.signing && pnpm build:mac
   notarize: true
+linux:
+  category: Utility
+  icon: resources/icon.icns
+  target:
+    - target: AppImage
+      arch:
+        - x64
+        - arm64
+  # Must match Drive API filename convention: Ternity-{version}-{arch}.AppImage
+  artifactName: Ternity-${version}-${arch}.AppImage

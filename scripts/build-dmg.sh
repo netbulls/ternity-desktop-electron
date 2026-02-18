@@ -14,8 +14,20 @@ DIST_DIR="$PROJECT_ROOT/dist"
 RESOURCES_DIR="$PROJECT_ROOT/resources"
 
 # --- Find the .app bundle ---
+# Optional arg: arch (arm64 | x64) — narrows the search to the right output dir.
+# electron-builder puts arm64 in dist/mac-arm64, x64 in dist/mac.
+TARGET_ARCH="${1:-}"
+
 APP_PATH=""
-for dir in mac-arm64 mac-x64 mac; do
+if [ "$TARGET_ARCH" = "arm64" ]; then
+  SEARCH_DIRS="mac-arm64"
+elif [ "$TARGET_ARCH" = "x64" ]; then
+  SEARCH_DIRS="mac-x64 mac"
+else
+  SEARCH_DIRS="mac-arm64 mac-x64 mac"
+fi
+
+for dir in $SEARCH_DIRS; do
   candidate="$DIST_DIR/$dir"
   if [ -d "$candidate" ]; then
     app=$(find "$candidate" -maxdepth 1 -name "*.app" -type d | head -1)
@@ -93,7 +105,7 @@ cp "$ICON_FILE" "$MOUNT_POINT/.VolumeIcon.icns"
 SetFile -c icnC "$MOUNT_POINT/.VolumeIcon.icns" 2>/dev/null || true
 SetFile -a C "$MOUNT_POINT" 2>/dev/null || true
 
-osascript <<APPLESCRIPT
+osascript <<APPLESCRIPT || echo "  Warning: AppleScript layout failed (Finder may need Automation permission), continuing..."
 tell application "Finder"
   tell disk "$VOLUME_NAME"
     open
@@ -132,7 +144,7 @@ hdiutil convert "${TEMP_DMG}.sparseimage" \
 # Clean up
 rm -f "${TEMP_DMG}.sparseimage"
 
-# --- Set custom DMG icon ---
+# --- Set custom DMG icon (must be before signing) ---
 echo "  Setting DMG icon..."
 sips -i "$DMG_ICON_FILE" >/dev/null 2>&1 || true
 DeRez -only icns "$DMG_ICON_FILE" > /tmp/_dmg_icon.rsrc 2>/dev/null
