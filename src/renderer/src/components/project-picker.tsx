@@ -54,16 +54,40 @@ export function ProjectPicker({
     .filter((p): p is ProjectOption => p != null);
 
   const filtered = search
-    ? grouped
-        .map((g) => ({
-          ...g,
-          projects: g.projects.filter(
-            (p) =>
-              p.name.toLowerCase().includes(search.toLowerCase()) ||
-              g.client.toLowerCase().includes(search.toLowerCase()),
-          ),
-        }))
-        .filter((g) => g.projects.length > 0)
+    ? (() => {
+        const q = search.toLowerCase();
+        // Collect name-matches and client-only-matches per group
+        const nameMap = new Map<string, ProjectOption[]>();
+        const clientMap = new Map<string, ProjectOption[]>();
+
+        for (const g of grouped) {
+          for (const p of g.projects) {
+            if (p.name.toLowerCase().includes(q)) {
+              if (!nameMap.has(g.client)) nameMap.set(g.client, []);
+              nameMap.get(g.client)!.push(p);
+            } else if (g.client.toLowerCase().includes(q)) {
+              if (!clientMap.has(g.client)) clientMap.set(g.client, []);
+              clientMap.get(g.client)!.push(p);
+            }
+          }
+        }
+
+        // Build result: for each client, name-matches first, then client-only matches
+        const allClients = new Set([...nameMap.keys(), ...clientMap.keys()]);
+        // Clients with name-matches sort first, then alphabetically within each tier
+        const sorted = [...allClients].sort((a, b) => {
+          const aHasName = nameMap.has(a) ? 0 : 1;
+          const bHasName = nameMap.has(b) ? 0 : 1;
+          if (aHasName !== bHasName) return aHasName - bHasName;
+          return a.localeCompare(b);
+        });
+
+        return sorted.map((client) => {
+          const byName = (nameMap.get(client) ?? []).sort((a, b) => a.name.localeCompare(b.name));
+          const byClient = (clientMap.get(client) ?? []).sort((a, b) => a.name.localeCompare(b.name));
+          return { client, projects: [...byName, ...byClient] };
+        });
+      })()
     : [
         ...(recentProjects.length > 0 ? [{ client: 'Recent', projects: recentProjects }] : []),
         ...grouped,
