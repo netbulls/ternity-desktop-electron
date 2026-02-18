@@ -1,7 +1,11 @@
 {
   "name": "ternity-desktop",
-  "version": "0.1.0-8-g7add472",
+  "version": "0.1.0-10-geb54708",
   "description": "Ternity Desktop — system tray companion for time tracking",
+  "author": {
+    "name": "Netbulls",
+    "email": "dev@netbulls.io"
+  },
   "type": "module",
   "main": "./out/main/index.js",
   "scripts": {
@@ -11,8 +15,8 @@
     "build:mac": "pnpm version-inject && electron-vite build && electron-builder --mac --config electron-builder.yml && bash scripts/build-dmg.sh",
     "build:mac:arm64": "pnpm version-inject && electron-vite build && electron-builder --mac --arm64 --config electron-builder.yml && bash scripts/build-dmg.sh arm64",
     "build:mac:x64": "pnpm version-inject && electron-vite build && electron-builder --mac --x64 --config electron-builder.yml && bash scripts/build-dmg.sh x64",
-    "build:linux:x64": "pnpm version-inject && electron-vite build && electron-builder --linux --x64 --config electron-builder.yml && for f in dist/Ternity-*-x86_64.AppImage; do mv \"$f\" \"${f/x86_64/x64}\"; done",
-    "build:linux:arm64": "pnpm version-inject && electron-vite build && electron-builder --linux --arm64 --config electron-builder.yml && for f in dist/Ternity-*-x86_64.AppImage; do mv \"$f\" \"${f/x86_64/x64}\"; done",
+    "build:linux:x64": "pnpm version-inject && electron-vite build && electron-builder --linux --x64 --config electron-builder.yml",
+    "build:linux:arm64": "pnpm version-inject && electron-vite build && electron-builder --linux --arm64 --config electron-builder.yml",
     "type-check": "tsc --noEmit",
     "format": "prettier --write .",
     "register-logto-app": "tsx scripts/register-logto-app.ts"

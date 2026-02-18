@@ -10,6 +10,10 @@ extraResources:
     to: trayTemplate.png
   - from: resources/trayTemplate@2x.png
     to: trayTemplate@2x.png
+  - from: resources/trayLight.png
+    to: trayLight.png
+  - from: resources/trayLight@2x.png
+    to: trayLight@2x.png
 mac:
   category: public.app-category.productivity
   icon: resources/icon.icns
@@ -29,5 +33,10 @@ linux:
       arch:
         - x64
         - arm64
-  # Must match Drive API filename convention: Ternity-{version}-{arch}.AppImage
-  artifactName: Ternity-${version}-${arch}.AppImage
+    - target: deb
+      arch:
+        - x64
+        - arm64
+  artifactName: Ternity-${version}-${arch}.${ext}
+deb:
+  afterInstall: build/after-install.sh
