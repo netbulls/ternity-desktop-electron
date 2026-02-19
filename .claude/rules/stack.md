@@ -30,7 +30,17 @@
 | Item | Command |
 |---|---|
 | **build** | `pnpm electron-builder --config electron-builder.yml` |
-| **distribute** | Build + push installers to Slack |
+| **release** | `source .env.signing && ./scripts/release.sh <env...>` |
+| **distribute** | `source .env.signing && ./scripts/distribute.sh <file> <env>` |
+
+### Release (full matrix)
+
+`./scripts/release.sh` builds all platforms and architectures, then distributes to the specified environments. Always produces 6 artifacts:
+
+| Platform | arm64 | x64 |
+|---|---|---|
+| **macOS** | `.dmg` (signed + notarized) | `.dmg` (signed + notarized) |
+| **Linux** | `.AppImage` + `.deb` | `.AppImage` + `.deb` |
 
 ## Environments
 

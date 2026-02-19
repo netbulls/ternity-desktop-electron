@@ -16,24 +16,31 @@ import { join, resolve } from 'path';
 const projectRoot = join(import.meta.dirname, '..');
 const distDir = join(projectRoot, 'dist');
 
-// Find the .app bundle — electron-builder puts it in dist/mac-arm64/ or dist/mac/
-const macDirs = ['mac-arm64', 'mac-x64', 'mac'];
-let appPath: string | undefined;
+// Find the .app bundle — explicit CLI arg or auto-discover from dist/
+let appPath: string | undefined = process.argv[2];
 
-for (const dir of macDirs) {
-  const candidate = join(distDir, dir);
-  if (existsSync(candidate)) {
-    const apps = readdirSync(candidate).filter((f) => f.endsWith('.app'));
-    if (apps.length > 0) {
-      appPath = join(candidate, apps[0]);
-      break;
+if (appPath) {
+  appPath = resolve(appPath);
+  if (!existsSync(appPath)) {
+    console.error(`App not found: ${appPath}`);
+    process.exit(1);
+  }
+} else {
+  const macDirs = ['mac-arm64', 'mac-x64', 'mac'];
+  for (const dir of macDirs) {
+    const candidate = join(distDir, dir);
+    if (existsSync(candidate)) {
+      const apps = readdirSync(candidate).filter((f) => f.endsWith('.app'));
+      if (apps.length > 0) {
+        appPath = join(candidate, apps[0]);
+        break;
+      }
     }
   }
-}
-
-if (!appPath) {
-  console.error('No .app bundle found in dist/. Run electron-builder first.');
-  process.exit(1);
+  if (!appPath) {
+    console.error('No .app bundle found in dist/. Run electron-builder first, or pass path as argument.');
+    process.exit(1);
+  }
 }
 
 // Read version from package.json for the output filename
