@@ -58,6 +58,7 @@ function createPopup(): BrowserWindow {
     hasShadow: true,
     backgroundColor: '#0a0a0a',
     visibleOnAllWorkspaces: !isLinux,
+    fullscreenable: false,
     type: process.platform === 'darwin' ? 'panel' : undefined,
     webPreferences: {
       preload: join(__dirname, '../preload/index.cjs'),
@@ -65,16 +66,51 @@ function createPopup(): BrowserWindow {
     },
   });
 
+  // macOS: pin across all spaces including full-screen
+  if (process.platform === 'darwin') {
+    win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+    win.setAlwaysOnTop(true, 'floating');
+  }
+
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     win.loadURL(process.env['ELECTRON_RENDERER_URL']);
   } else {
     win.loadFile(join(__dirname, '../renderer/index.html'));
   }
 
-  // Hide on blur (click outside) — standard tray app behavior
+  // Blur handling — platform-specific
+  let blurTimer: ReturnType<typeof setTimeout> | null = null;
+
   win.on('blur', () => {
     if (Date.now() < blurSuppressedUntil) return;
-    win.hide();
+    if (blurTimer) clearTimeout(blurTimer);
+
+    if (process.platform === 'darwin') {
+      // macOS: re-focus after blur to survive space switches.
+      // Space transitions blur the window; re-focusing keeps it pinned with keyboard focus.
+      // Dismissal is via tray toggle or Escape only.
+      blurTimer = setTimeout(() => {
+        if (win.isVisible() && !win.isDestroyed()) {
+          win.setAlwaysOnTop(true, 'floating');
+          app.show();
+          win.focus();
+        }
+      }, 200);
+    } else {
+      // Linux/Windows: hide on blur (click outside)
+      blurTimer = setTimeout(() => {
+        if (win.isVisible() && !win.isFocused()) {
+          win.hide();
+        }
+      }, 100);
+    }
+  });
+
+  win.on('focus', () => {
+    if (blurTimer) {
+      clearTimeout(blurTimer);
+      blurTimer = null;
+    }
   });
 
   // Esc to close
@@ -146,8 +182,10 @@ function showPopup(): void {
   if (!popup) return;
   if (isLinux) blurSuppressedUntil = Date.now() + 300;
   if (process.platform === 'darwin') {
+    // Re-apply every show — Electron can reset these internally
     popup.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-    popup.setAlwaysOnTop(true, 'pop-up-menu');
+    popup.setAlwaysOnTop(true, 'floating');
+    app.show(); // activate app (needed to appear over full-screen spaces)
   } else {
     popup.setAlwaysOnTop(true);
   }
@@ -250,6 +288,10 @@ app.whenReady().then(() => {
       initialShowDone = true;
       // Let resize paint before showing
       setTimeout(() => {
+        if (process.platform === 'darwin') {
+          popup!.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+          popup!.setAlwaysOnTop(true, 'floating');
+        }
         positionPopup();
         popup!.show();
         popup!.focus();
