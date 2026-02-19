@@ -2,8 +2,11 @@
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-02-19
+
 ### Added
 - Full-matrix release script — build all platforms and architectures in one command
+- Changelog convention with release notes pushed to Drive
 
 ### Fixed
 - macOS window stays pinned across spaces with keyboard focus
