@@ -47,6 +47,33 @@ echo "=== Release v${VERSION} ==="
 echo "Environments: ${ENVS[*]}"
 echo ""
 
+# --- Extract release notes from CHANGELOG.md ---
+NOTES=""
+if [ -f CHANGELOG.md ]; then
+  # Extract the section for this version, or [Unreleased] for snapshot builds
+  if echo "$VERSION" | grep -q '-'; then
+    SECTION_HEADER="Unreleased"
+  else
+    SECTION_HEADER="$VERSION"
+  fi
+  # Extract everything between this section header and the next ## [
+  NOTES=$(awk -v header="$SECTION_HEADER" '
+    $0 ~ "^## \\[" header "\\]" { found=1; next }
+    found && /^## \[/ { exit }
+    found { print }
+  ' CHANGELOG.md | sed '/^[[:space:]]*$/d' | head -100)
+fi
+
+if [ -n "$NOTES" ]; then
+  echo "Release notes extracted from CHANGELOG.md:"
+  echo "$NOTES" | head -5
+  [ "$(echo "$NOTES" | wc -l)" -gt 5 ] && echo "  ..."
+  echo ""
+else
+  echo "No release notes found in CHANGELOG.md"
+  echo ""
+fi
+
 ARTIFACTS=()
 
 # --- macOS arm64 ---
@@ -115,7 +142,61 @@ for ENV in "${ENVS[@]}"; do
   done
 done
 
+# --- Push release notes ---
+VPS_HOST="${DRIVE_VPS_HOST:-89.167.28.70}"
+VPS_USER="${DRIVE_VPS_USER:-deploy}"
+
+if [ -n "$NOTES" ]; then
+  echo "=== Pushing release notes (v${VERSION}) ==="
+  for ENV in "${ENVS[@]}"; do
+    case "$ENV" in
+      local)
+        DRIVE_URL="http://localhost:3020"
+        API_KEY="${DRIVE_LOCAL_API_KEY:-}"
+        ;;
+      dev)
+        CONTAINER_IP=$(ssh "${VPS_USER}@${VPS_HOST}" \
+          "docker inspect --format='{{range .NetworkSettings.Networks}}{{.IPAddress}}{{\"\\n\"}}{{end}}' ternity-drive-dev" \
+          | grep -oE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
+        DRIVE_URL="http://${CONTAINER_IP}:3020"
+        API_KEY="${DRIVE_DEV_API_KEY:-}"
+        ;;
+      prod)
+        CONTAINER_IP=$(ssh "${VPS_USER}@${VPS_HOST}" \
+          "docker inspect --format='{{range .NetworkSettings.Networks}}{{.IPAddress}}{{\"\\n\"}}{{end}}' ternity-drive-prod" \
+          | grep -oE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
+        DRIVE_URL="http://${CONTAINER_IP}:3020"
+        API_KEY="${DRIVE_PROD_API_KEY:-}"
+        ;;
+    esac
+
+    echo -n "  $ENV: "
+    if [ "$ENV" = "local" ]; then
+      HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+        -X PUT "${DRIVE_URL}/api/releases/${VERSION}/notes" \
+        -H "Authorization: Bearer $API_KEY" \
+        -H "Content-Type: text/markdown" \
+        -d "$NOTES")
+    else
+      HTTP_CODE=$(ssh "${VPS_USER}@${VPS_HOST}" \
+        "curl -s -o /dev/null -w '%{http_code}' \
+        -X PUT '${DRIVE_URL}/api/releases/${VERSION}/notes' \
+        -H 'Authorization: Bearer $API_KEY' \
+        -H 'Content-Type: text/markdown' \
+        -d '$(echo "$NOTES" | sed "s/'/'\\\\''/g")'")
+    fi
+
+    if [ "$HTTP_CODE" = "200" ]; then
+      echo "OK"
+    else
+      echo "FAILED (HTTP $HTTP_CODE)"
+    fi
+  done
+  echo ""
+fi
+
 echo "=== Done ==="
 echo "  Version:      v${VERSION}"
 echo "  Artifacts:    ${#ARTIFACTS[@]}"
+echo "  Notes:        $([ -n "$NOTES" ] && echo "pushed" || echo "none")"
 echo "  Environments: ${ENVS[*]}"
