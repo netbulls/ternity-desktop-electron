@@ -19,15 +19,23 @@ export function SettingsContent({
   const { environmentConfig, user, signOut } = useAuth();
   const data = useOptionalData();
   const [startAtLogin, setStartAtLogin] = useState(false);
+  const [rememberPosition, setRememberPosition] = useState(false);
 
   useEffect(() => {
     window.electronAPI?.getLoginItem().then(setStartAtLogin);
+    window.electronAPI?.getRememberPosition().then(setRememberPosition);
   }, []);
 
   const toggleStartAtLogin = () => {
     const next = !startAtLogin;
     setStartAtLogin(next);
     window.electronAPI?.setLoginItem(next);
+  };
+
+  const toggleRememberPosition = () => {
+    const next = !rememberPosition;
+    setRememberPosition(next);
+    window.electronAPI?.setRememberPosition(next);
   };
 
   return (
@@ -123,7 +131,7 @@ export function SettingsContent({
 
         {/* Start at Login */}
         <div
-          className="flex cursor-pointer items-center justify-between"
+          className="flex cursor-pointer items-center justify-between border-b border-border/50"
           style={{ padding: `${scaled(7)} ${scaled(10)}` }}
           onClick={toggleStartAtLogin}
         >
@@ -141,6 +149,31 @@ export function SettingsContent({
                 height: scaled(12),
                 top: scaled(2),
                 left: startAtLogin ? scaled(14) : scaled(2),
+              }}
+            />
+          </span>
+        </div>
+
+        {/* Remember Position */}
+        <div
+          className="flex cursor-pointer items-center justify-between"
+          style={{ padding: `${scaled(7)} ${scaled(10)}` }}
+          onClick={toggleRememberPosition}
+        >
+          <span className="text-muted-foreground">Remember Position</span>
+          <span
+            className={`rounded-full transition-colors ${
+              rememberPosition ? 'bg-primary' : 'bg-muted-foreground/30'
+            }`}
+            style={{ width: scaled(28), height: scaled(16), position: 'relative' }}
+          >
+            <span
+              className="absolute rounded-full bg-white transition-all"
+              style={{
+                width: scaled(12),
+                height: scaled(12),
+                top: scaled(2),
+                left: rememberPosition ? scaled(14) : scaled(2),
               }}
             />
           </span>
@@ -214,6 +247,25 @@ export function SettingsContent({
         >
           View Logs
         </button>
+      </div>
+
+      {/* Platform badge */}
+      <div
+        className="mt-3 flex items-center justify-center"
+        style={{ gap: scaled(6) }}
+      >
+        <span
+          className="rounded-full border border-primary/20 bg-primary/5 px-2 py-0.5 font-mono text-primary/60"
+          style={{ fontSize: scaled(7) }}
+        >
+          Electron
+        </span>
+        <span
+          className="text-muted-foreground/30 font-mono"
+          style={{ fontSize: scaled(7) }}
+        >
+          {__APP_VERSION__}
+        </span>
       </div>
     </div>
   );

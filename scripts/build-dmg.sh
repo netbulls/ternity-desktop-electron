@@ -48,7 +48,7 @@ APP_NAME=$(basename "$APP_PATH")
 # --- Version + output name ---
 VERSION=$(node -e "console.log(require('./package.json').version)")
 ARCH=$([[ "$APP_PATH" == *arm64* ]] && echo "arm64" || echo "x64")
-DMG_NAME="Ternity-${VERSION}-${ARCH}.dmg"
+DMG_NAME="Ternity-Electron-${VERSION}-${ARCH}.dmg"
 DMG_PATH="$DIST_DIR/$DMG_NAME"
 VOLUME_NAME="Ternity Desktop"
 

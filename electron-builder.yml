@@ -37,6 +37,6 @@ linux:
       arch:
         - x64
         - arm64
-  artifactName: Ternity-${version}-${arch}.${ext}
+  artifactName: Ternity-Electron-${version}-${arch}.${ext}
 deb:
   afterInstall: build/after-install.sh

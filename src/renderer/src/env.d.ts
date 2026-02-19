@@ -44,5 +44,7 @@ interface Window {
     getLoginItem: () => Promise<boolean>;
     setLoginItem: (enabled: boolean) => Promise<void>;
     openLogs: () => Promise<void>;
+    getRememberPosition: () => Promise<boolean>;
+    setRememberPosition: (enabled: boolean) => Promise<void>;
   };
 }

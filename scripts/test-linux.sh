@@ -12,8 +12,8 @@
 # VPS_HOST defaults to $DRIVE_VPS_HOST or 89.167.28.70.
 #
 # Examples:
-#   ./scripts/test-linux.sh dist/Ternity-1.0.0-arm64.AppImage
-#   source .env.signing && ./scripts/test-linux.sh dist/Ternity-*.AppImage
+#   ./scripts/test-linux.sh dist/Ternity-Electron-1.0.0-arm64.AppImage
+#   source .env.signing && ./scripts/test-linux.sh dist/Ternity-Electron-*.AppImage
 #
 
 set -euo pipefail

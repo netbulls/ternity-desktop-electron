@@ -19,24 +19,24 @@ const isLinux = process.platform === 'linux';
 let tray: Tray | null = null;
 let popup: BrowserWindow | null = null;
 
-// Linux: persist window position since tray.getBounds() always returns {0,0,0,0}
+// Remembered window position (cross-platform; also serves as Linux fallback since tray.getBounds() returns zeros)
 let savedPosition: { x: number; y: number } | null = null;
 
 // Linux: suppress blur briefly after tray click (GNOME fires blur immediately after show)
 let blurSuppressedUntil = 0;
 
 function loadSavedPosition(): void {
-  if (!isLinux) return;
   const config = readConfig();
+  if (!config.rememberPosition) return;
   if (config.windowX != null && config.windowY != null) {
     savedPosition = { x: config.windowX as number, y: config.windowY as number };
   }
 }
 
 function savePosition(x: number, y: number): void {
-  if (!isLinux) return;
-  savedPosition = { x, y };
   const config = readConfig();
+  if (!config.rememberPosition) return;
+  savedPosition = { x, y };
   config.windowX = x;
   config.windowY = y;
   writeConfig(config);
@@ -84,14 +84,12 @@ function createPopup(): BrowserWindow {
     }
   });
 
-  // Linux: save position when user moves the window
-  if (isLinux) {
-    win.on('moved', () => {
-      const [x, y] = win.getPosition();
-      savePosition(x, y);
-      log.debug('Window moved to', { x, y });
-    });
-  }
+  // Save position when user moves the window (for "Remember Position" feature)
+  win.on('moved', () => {
+    const [x, y] = win.getPosition();
+    savePosition(x, y);
+    log.debug('Window moved to', { x, y });
+  });
 
   return win;
 }
@@ -99,13 +97,10 @@ function createPopup(): BrowserWindow {
 function positionPopup(): void {
   if (!tray || !popup) return;
 
-  const trayBounds = tray.getBounds();
   const windowBounds = popup.getBounds();
-  const hasTrayBounds = trayBounds.width > 0 && trayBounds.height > 0;
 
-  // Linux: use saved position if available (tray bounds are always {0,0,0,0} on GNOME/Wayland)
-  if (!hasTrayBounds && savedPosition) {
-    // Validate saved position is still on-screen
+  // Use remembered position if available (cross-platform)
+  if (savedPosition) {
     const display = screen.getDisplayNearestPoint(savedPosition);
     const wa = display.workArea;
     const x = Math.max(wa.x, Math.min(savedPosition.x, wa.x + wa.width - windowBounds.width));
@@ -113,6 +108,9 @@ function positionPopup(): void {
     popup.setPosition(x, y);
     return;
   }
+
+  const trayBounds = tray.getBounds();
+  const hasTrayBounds = trayBounds.width > 0 && trayBounds.height > 0;
 
   const display = hasTrayBounds
     ? screen.getDisplayNearestPoint({ x: trayBounds.x, y: trayBounds.y })
@@ -231,17 +229,9 @@ app.whenReady().then(() => {
   createTray();
   popup = createPopup();
 
-  // Show popup on launch (skip on Linux — tray click will open it,
-  // and auto-showing causes the first tray click to toggle it off)
-  if (!isLinux) {
-    popup.once('ready-to-show', () => {
-      positionPopup();
-      popup!.show();
-      popup!.focus();
-    });
-  }
-
   // IPC: resize window (for settings expand)
+  // On first resize, show the popup (content is properly sized, no visual jank)
+  let initialShowDone = isLinux; // Linux: skip auto-show, tray click opens it
   ipcMain.on('resize-window', (_event, width: number, height: number) => {
     if (!popup) return;
     const w = Math.round(width);
@@ -254,7 +244,16 @@ app.whenReady().then(() => {
       popup.setSize(w, h);
       popup.setResizable(false);
     } else {
-      popup.setSize(w, h, true);
+      popup.setSize(w, h, initialShowDone); // no animation on initial resize
+    }
+    if (!initialShowDone) {
+      initialShowDone = true;
+      // Let resize paint before showing
+      setTimeout(() => {
+        positionPopup();
+        popup!.show();
+        popup!.focus();
+      }, 50);
     }
   });
 
@@ -308,6 +307,23 @@ app.whenReady().then(() => {
 
   ipcMain.handle('app:set-login-item', (_event, enabled: boolean) => {
     app.setLoginItemSettings({ openAtLogin: enabled });
+  });
+
+  // IPC: remember position toggle
+  ipcMain.handle('app:get-remember-position', () => {
+    const config = readConfig();
+    return config.rememberPosition === true;
+  });
+
+  ipcMain.handle('app:set-remember-position', (_event, enabled: boolean) => {
+    const config = readConfig();
+    config.rememberPosition = enabled;
+    if (!enabled) {
+      delete config.windowX;
+      delete config.windowY;
+      savedPosition = null;
+    }
+    writeConfig(config);
   });
 
   // IPC: open log file in Finder

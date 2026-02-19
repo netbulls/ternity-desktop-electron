@@ -13,9 +13,9 @@
 #   DRIVE_VPS_HOST (for dev/prod)
 #
 # Examples:
-#   source .env.signing && ./scripts/distribute.sh dist/Ternity-1.0.0-arm64.dmg local
-#   source .env.signing && ./scripts/distribute.sh dist/Ternity-1.0.0-arm64.dmg dev
-#   source .env.signing && ./scripts/distribute.sh dist/Ternity-1.0.0-x64.AppImage prod
+#   source .env.signing && ./scripts/distribute.sh dist/Ternity-Electron-1.0.0-arm64.dmg local
+#   source .env.signing && ./scripts/distribute.sh dist/Ternity-Electron-1.0.0-arm64.dmg dev
+#   source .env.signing && ./scripts/distribute.sh dist/Ternity-Electron-1.0.0-x64.AppImage prod
 #
 
 set -euo pipefail

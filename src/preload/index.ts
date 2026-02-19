@@ -20,4 +20,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getLoginItem: () => ipcRenderer.invoke('app:get-login-item'),
   setLoginItem: (enabled: boolean) => ipcRenderer.invoke('app:set-login-item', enabled),
   openLogs: () => ipcRenderer.invoke('app:open-logs'),
+  getRememberPosition: () => ipcRenderer.invoke('app:get-remember-position'),
+  setRememberPosition: (enabled: boolean) =>
+    ipcRenderer.invoke('app:set-remember-position', enabled),
 });

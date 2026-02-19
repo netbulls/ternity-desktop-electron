@@ -42,7 +42,7 @@ const pkg = JSON.parse(
 );
 const version = pkg.version;
 const arch = appPath.includes('arm64') ? 'arm64' : 'x64';
-const dmgName = `Ternity-${version}-${arch}.dmg`;
+const dmgName = `Ternity-Electron-${version}-${arch}.dmg`;
 const dmgPath = join(distDir, dmgName);
 
 // Remove existing DMG if present
