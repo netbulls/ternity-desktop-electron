@@ -79,9 +79,10 @@ ARTIFACTS+=("dist/Ternity-Electron-${VERSION}-x64.dmg")
 echo "==> [5/5] Building Linux (AppImage + deb, arm64 + x64)..."
 pnpm electron-builder --config electron-builder.yml --linux deb AppImage --arm64 --x64
 
-for ARCH in arm64 x64; do
-  ARTIFACTS+=("dist/Ternity-Electron-${VERSION}-${ARCH}.AppImage")
-  ARTIFACTS+=("dist/Ternity-Electron-${VERSION}-${ARCH}.deb")
+# electron-builder uses platform-native arch names (x86_64 for AppImage, amd64 for deb)
+# so we glob for actual files instead of assuming names
+for file in dist/Ternity-Electron-${VERSION}-*.AppImage dist/Ternity-Electron-${VERSION}-*.deb; do
+  [ -f "$file" ] && ARTIFACTS+=("$file")
 done
 
 # --- Verify all artifacts exist ---
