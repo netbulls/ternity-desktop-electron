@@ -44,6 +44,8 @@ interface Window {
     getLoginItem: () => Promise<boolean>;
     setLoginItem: (enabled: boolean) => Promise<void>;
     openLogs: () => Promise<void>;
+    getDefaultProject: () => Promise<string | null>;
+    setDefaultProject: (projectId: string | null) => Promise<void>;
     getRememberPosition: () => Promise<boolean>;
     setRememberPosition: (enabled: boolean) => Promise<void>;
   };

@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+### Added
+- Default project preference — pre-selects in timer form, persists across sessions
+- Click-outside to dismiss popup on macOS (previously only via Escape or tray toggle)
+
+### Changed
+- macOS blur handling uses space-change detection to survive space switches while allowing click-outside dismiss
+
 ## [0.3.0] - 2026-02-19
 
 ### Added

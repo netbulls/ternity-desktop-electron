@@ -9,11 +9,13 @@ export function ProjectPicker({
   onSelect,
   onClose,
   projects,
+  align = 'left',
 }: {
   selected: ProjectOption | null;
   onSelect: (project: ProjectOption | null) => void;
   onClose: () => void;
   projects: ProjectOption[];
+  align?: 'left' | 'right';
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -96,7 +98,7 @@ export function ProjectPicker({
   return (
     <motion.div
       ref={ref}
-      className="absolute left-0 top-full z-50 overflow-hidden rounded-lg border border-border bg-background"
+      className={`absolute top-full z-50 overflow-hidden rounded-lg border border-border bg-background ${align === 'right' ? 'right-0' : 'left-0'}`}
       style={{
         width: scaled(260),
         marginTop: scaled(4),

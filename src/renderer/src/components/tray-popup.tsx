@@ -93,6 +93,32 @@ function TimerView({
   const elapsed = useElapsedSeconds(data.timer.entry?.startedAt ?? null, data.timer.running);
   const descriptionCommitRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSyncedEntryIdRef = useRef<string | null>(null);
+  const defaultProjectIdRef = useRef<string | null>(null);
+
+  // Load default project preference from config and pre-select if idle
+  useEffect(() => {
+    window.electronAPI?.getDefaultProject().then((id) => {
+      defaultProjectIdRef.current = id;
+      if (id && !data.timer.running) {
+        const match = data.projects.find((p) => p.id === id) ?? null;
+        if (match) setSelectedProject(match);
+      }
+    });
+  }, [data.projects]); // re-run when projects load
+
+  // Sync when default project is changed in settings (while timer is idle)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const id = (e as CustomEvent<string | null>).detail;
+      defaultProjectIdRef.current = id;
+      if (data.timer.running) return;
+      const match = id ? (data.projects.find((p) => p.id === id) ?? null) : null;
+      setSelectedProject(match);
+    };
+    window.addEventListener('default-project-changed', handler);
+    return () => window.removeEventListener('default-project-changed', handler);
+  }, [data.timer.running, data.projects]);
+
   const updateTimerRef = useRef(data.updateTimer);
   updateTimerRef.current = data.updateTimer;
   // Sync description + project from running entry (on resume or initial load)
@@ -129,7 +155,11 @@ function TimerView({
     }
     lastSyncedEntryIdRef.current = null;
     setDescription('');
-    setSelectedProject(null);
+    // Re-apply default project for the next timer, or clear
+    const defaultMatch = defaultProjectIdRef.current
+      ? (data.projects.find((p) => p.id === defaultProjectIdRef.current) ?? null)
+      : null;
+    setSelectedProject(defaultMatch);
     data.stopTimer();
   };
   const handleResume = (entryId: string) => {
@@ -359,7 +389,7 @@ export function TrayPopup() {
         {/* Settings expand panel */}
         {isAuthenticated && settingsOpen && (
           <div
-            className="shrink-0 overflow-hidden border-l border-border bg-background"
+            className="shrink-0 border-l border-border bg-background"
             style={{ width: scaled(240) }}
           >
             <div style={{ width: scaled(240) }}>

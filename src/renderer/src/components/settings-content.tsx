@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Keyboard, X, LogOut } from 'lucide-react';
+import { Keyboard, X, LogOut, ChevronDown, FolderKanban } from 'lucide-react';
+import { AnimatePresence } from 'motion/react';
 import { scaled } from '@/lib/scaled';
 import { THEMES, type ThemeId } from '@/lib/themes';
 import { SCALES, useScale } from '@/providers/scale-provider';
@@ -7,6 +8,8 @@ import { useTheme } from '@/providers/theme-provider';
 import { LAYOUTS, useLayout, type LayoutId } from '@/providers/layout-provider';
 import { useAuth } from '@/providers/auth-provider';
 import { useOptionalData } from '@/providers/data-provider';
+import { ProjectPicker } from './project-picker';
+import type { ProjectOption } from '@/lib/api-types';
 
 export function SettingsContent({
   onClose,
@@ -16,15 +19,24 @@ export function SettingsContent({
   const { theme, setTheme } = useTheme();
   const { scale, setScale } = useScale();
   const { layout, setLayout } = useLayout();
-  const { environmentConfig, user, signOut } = useAuth();
+  const { environment, environmentConfig, user, signOut } = useAuth();
   const data = useOptionalData();
   const [startAtLogin, setStartAtLogin] = useState(false);
   const [rememberPosition, setRememberPosition] = useState(false);
+  const [defaultProjectId, setDefaultProjectId] = useState<string | null>(null);
+  const [projects, setProjects] = useState<ProjectOption[]>([]);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   useEffect(() => {
     window.electronAPI?.getLoginItem().then(setStartAtLogin);
     window.electronAPI?.getRememberPosition().then(setRememberPosition);
-  }, []);
+    window.electronAPI?.getDefaultProject().then(setDefaultProjectId);
+    window.electronAPI
+      ?.apiFetch(environment, '/api/projects')
+      .then((res) => {
+        if (res.data && Array.isArray(res.data)) setProjects(res.data);
+      });
+  }, [environment]);
 
   const toggleStartAtLogin = () => {
     const next = !startAtLogin;
@@ -37,6 +49,16 @@ export function SettingsContent({
     setRememberPosition(next);
     window.electronAPI?.setRememberPosition(next);
   };
+
+  const handleDefaultProjectSelect = (project: ProjectOption | null) => {
+    setDefaultProjectId(project?.id ?? null);
+    window.electronAPI?.setDefaultProject(project?.id ?? null);
+    window.dispatchEvent(
+      new CustomEvent('default-project-changed', { detail: project?.id ?? null }),
+    );
+  };
+
+  const selectedDefaultProject = projects.find((p) => p.id === defaultProjectId) ?? null;
 
   return (
     <div style={{ padding: scaled(16) }}>
@@ -179,6 +201,67 @@ export function SettingsContent({
           </span>
         </div>
       </div>
+
+      {/* Preferences */}
+      {projects.length > 0 && (
+        <div
+          className="mb-3 rounded-md border border-border bg-card"
+          style={{ fontSize: scaled(10) }}
+        >
+          <div
+            className="relative flex items-center justify-between"
+            style={{ padding: `${scaled(7)} ${scaled(10)}` }}
+          >
+            <span className="text-muted-foreground">Default Project</span>
+            <span
+              className="flex cursor-pointer items-center text-muted-foreground transition-colors hover:text-foreground"
+              style={{ gap: scaled(4), fontSize: scaled(10) }}
+              onClick={() => setPickerOpen((o) => !o)}
+            >
+              {selectedDefaultProject ? (
+                <>
+                  <span
+                    className="shrink-0 rounded-full"
+                    style={{
+                      width: scaled(6),
+                      height: scaled(6),
+                      background: selectedDefaultProject.color ?? 'hsl(var(--primary))',
+                    }}
+                  />
+                  <span className="truncate" style={{ maxWidth: scaled(90) }}>
+                    {selectedDefaultProject.name}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <FolderKanban style={{ width: scaled(10), height: scaled(10) }} />
+                  <span>None</span>
+                </>
+              )}
+              <ChevronDown
+                style={{
+                  width: scaled(9),
+                  height: scaled(9),
+                  opacity: 0.5,
+                  transition: 'transform 0.15s',
+                  transform: pickerOpen ? 'rotate(180deg)' : 'rotate(0)',
+                }}
+              />
+            </span>
+            <AnimatePresence>
+              {pickerOpen && (
+                <ProjectPicker
+                  selected={selectedDefaultProject}
+                  onSelect={handleDefaultProjectSelect}
+                  onClose={() => setPickerOpen(false)}
+                  projects={projects}
+                  align="right"
+                />
+              )}
+            </AnimatePresence>
+          </div>
+        </div>
+      )}
 
       {/* Shortcuts */}
       <div>

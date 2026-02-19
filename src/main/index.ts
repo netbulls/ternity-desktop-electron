@@ -1,4 +1,14 @@
-import { app, BrowserWindow, Tray, Menu, screen, nativeImage, ipcMain, shell } from 'electron';
+import {
+  app,
+  BrowserWindow,
+  Tray,
+  Menu,
+  screen,
+  nativeImage,
+  ipcMain,
+  shell,
+  systemPreferences,
+} from 'electron';
 import { join } from 'path';
 import { is } from '@electron-toolkit/utils';
 import { readConfig, writeConfig } from './config';
@@ -24,6 +34,12 @@ let savedPosition: { x: number; y: number } | null = null;
 
 // Linux: suppress blur briefly after tray click (GNOME fires blur immediately after show)
 let blurSuppressedUntil = 0;
+
+// macOS: track space switches to distinguish them from click-outside blurs.
+// NSWorkspaceActiveSpaceDidChangeNotification fires when the user switches spaces;
+// we set a timestamp so the blur handler can detect the transition and re-focus
+// instead of hiding.
+let spaceChangedAt = 0;
 
 function loadSavedPosition(): void {
   const config = readConfig();
@@ -86,20 +102,26 @@ function createPopup(): BrowserWindow {
     if (blurTimer) clearTimeout(blurTimer);
 
     if (process.platform === 'darwin') {
-      // macOS: re-focus after blur to survive space switches.
-      // Space transitions blur the window; re-focusing keeps it pinned with keyboard focus.
-      // Dismissal is via tray toggle or Escape only.
+      // macOS: distinguish "clicked another app" from "space switch".
+      // Space switches fire NSWorkspaceActiveSpaceDidChangeNotification
+      // which sets spaceChangedAt. If blur happens right after, re-focus
+      // to survive the transition. Otherwise, user clicked away → hide.
       blurTimer = setTimeout(() => {
-        if (win.isVisible() && !win.isDestroyed()) {
+        if (win.isDestroyed() || !win.isVisible()) return;
+        if (Date.now() - spaceChangedAt < 1000) {
+          // Space just changed → re-focus to survive the transition
           win.setAlwaysOnTop(true, 'floating');
           app.show();
           win.focus();
+        } else {
+          // User clicked another app → dismiss
+          win.hide();
         }
       }, 200);
     } else {
       // Linux/Windows: hide on blur (click outside)
       blurTimer = setTimeout(() => {
-        if (win.isVisible() && !win.isFocused()) {
+        if (win.isVisible() && !win.isFocused() && !win.isDestroyed()) {
           win.hide();
         }
       }, 100);
@@ -368,6 +390,22 @@ app.whenReady().then(() => {
     writeConfig(config);
   });
 
+  // IPC: default project preference
+  ipcMain.handle('app:get-default-project', () => {
+    const config = readConfig();
+    return (config.defaultProjectId as string) ?? null;
+  });
+
+  ipcMain.handle('app:set-default-project', (_event, projectId: string | null) => {
+    const config = readConfig();
+    if (projectId) {
+      config.defaultProjectId = projectId;
+    } else {
+      delete config.defaultProjectId;
+    }
+    writeConfig(config);
+  });
+
   // IPC: open log file in Finder
   ipcMain.handle('app:open-logs', () => {
     return shell.showItemInFolder(getLogPath());
@@ -418,6 +456,16 @@ app.whenReady().then(() => {
     },
   );
 });
+
+// macOS: subscribe to space-change notifications
+if (process.platform === 'darwin') {
+  systemPreferences.subscribeWorkspaceNotification(
+    'NSWorkspaceActiveSpaceDidChangeNotification',
+    () => {
+      spaceChangedAt = Date.now();
+    },
+  );
+}
 
 app.on('window-all-closed', () => {
   // Don't quit — tray app stays alive
