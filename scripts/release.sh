@@ -126,7 +126,7 @@ echo "  Syncing project to Windows VM..."
 ssh "$WIN_HOST" "set \"PATH=${WIN_PATH};%PATH%\" && cd ${WIN_PROJECT_DIR} && git pull --ff-only" || true
 scp electron-builder.yml "${WIN_HOST}:ternity-desktop/electron-builder.yml"
 scp package.json "${WIN_HOST}:ternity-desktop/package.json"
-scp scripts/win-sign.js "${WIN_HOST}:ternity-desktop/scripts/win-sign.js"
+scp scripts/win-sign.cjs "${WIN_HOST}:ternity-desktop/scripts/win-sign.cjs"
 
 SIGN_ENV=""
 if [ -n "${CERTUM_CERT_SHA1:-}" ]; then

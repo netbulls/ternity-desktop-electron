@@ -34,7 +34,7 @@ win:
         - arm64
   artifactName: Ternity-Electron-${version}-${arch}.${ext}
   signtoolOptions:
-    sign: "./scripts/win-sign.js"
+    sign: "./scripts/win-sign.cjs"
     signingHashAlgorithms:
       - sha256
 nsis:
