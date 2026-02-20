@@ -26,6 +26,7 @@ export interface LayoutProps {
   onStart: () => void;
   onStop: () => void;
   onResume: (entryId: string) => void;
+  onUpdateEntry: (entryId: string, params: { description?: string; projectId?: string | null }) => void;
   selectedProject: ProjectOption | null;
   onProjectSelect: (project: ProjectOption | null) => void;
   description: string;
@@ -207,10 +208,10 @@ function TimerView({
 
   if (data.isLoading) {
     return (
-      <div className="flex items-center justify-center" style={{ padding: scaled(40) }}>
+      <div className="flex h-screen items-center justify-center">
         <Loader2
-          className="animate-spin text-primary"
-          style={{ width: scaled(20), height: scaled(20) }}
+          className="animate-spin text-primary/40"
+          style={{ width: scaled(24), height: scaled(24) }}
         />
       </div>
     );
@@ -234,6 +235,7 @@ function TimerView({
     onStart: handleStart,
     onStop: handleStop,
     onResume: handleResume,
+    onUpdateEntry: data.updateEntry,
     selectedProject,
     onProjectSelect: handleProjectSelect,
     description,
@@ -249,8 +251,8 @@ function TimerView({
     layout === 'hero' ? HeroLayout : layout === 'layered' ? LayeredLayout : LiquidGlassLayout;
 
   return (
-    <>
-      <div className="relative">
+    <div className="flex h-screen flex-col">
+      <div className="relative shrink-0">
         <PopupHeader onSettingsClick={onSettingsClick} />
         <AnimatePresence>
           {statusState !== 'none' && !statusDismissed && (
@@ -263,7 +265,7 @@ function TimerView({
         </AnimatePresence>
       </div>
       <LayoutComponent {...layoutProps} />
-    </>
+    </div>
   );
 }
 
@@ -280,59 +282,58 @@ export function TrayPopup() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsOpenRef = useRef(false);
   const contentRef = useRef<HTMLDivElement>(null);
-  const lastHeightRef = useRef(0);
+  const initialResizeDone = useRef(false);
 
   const popupWidth = Math.round(BASE_WIDTH * scale);
   const settingsWidth = Math.round(BASE_SETTINGS_WIDTH * scale);
 
-  const resizeWindow = useCallback((w: number, h: number) => {
-    window.electronAPI?.resizeWindow(w, h);
+  const resizeWidth = useCallback((w: number) => {
+    window.electronAPI?.resizeWindow(w, 0); // height ignored by main process
   }, []);
 
-  // Auto-resize window height based on actual content
+  // Send initial width + trigger show on first meaningful render
   useEffect(() => {
     const el = contentRef.current;
     if (!el) return;
 
     const observer = new ResizeObserver(() => {
-      const height = Math.ceil(el.scrollHeight);
-      if (Math.abs(height - lastHeightRef.current) < 2) return;
-      lastHeightRef.current = height;
-      const width = settingsOpenRef.current ? popupWidth + settingsWidth : popupWidth;
-      resizeWindow(width, height);
+      if (!initialResizeDone.current && el.scrollHeight > 200) {
+        initialResizeDone.current = true;
+        const width = settingsOpenRef.current ? popupWidth + settingsWidth : popupWidth;
+        resizeWidth(width);
+      }
     });
 
     observer.observe(el);
     return () => observer.disconnect();
-  }, [popupWidth, settingsWidth, resizeWindow]);
+  }, [popupWidth, settingsWidth, resizeWidth]);
 
-  // Also resize width when scale changes
+  // Resize width when scale changes
   useEffect(() => {
+    if (!initialResizeDone.current) return;
     const width = settingsOpenRef.current ? popupWidth + settingsWidth : popupWidth;
-    if (lastHeightRef.current > 0) {
-      resizeWindow(width, lastHeightRef.current);
-    }
-  }, [popupWidth, settingsWidth, resizeWindow]);
+    resizeWidth(width);
+  }, [popupWidth, settingsWidth, resizeWidth]);
 
   // Close settings panel when signing out
   useEffect(() => {
     if (!isAuthenticated && settingsOpenRef.current) {
       settingsOpenRef.current = false;
       setSettingsOpen(false);
-      resizeWindow(popupWidth, lastHeightRef.current || 520);
+      resizeWidth(popupWidth);
     }
-  }, [isAuthenticated, popupWidth, resizeWindow]);
+  }, [isAuthenticated, popupWidth, resizeWidth]);
 
   const handleSettingsToggle = () => {
     if (settingsOpen) {
       settingsOpenRef.current = false;
-      resizeWindow(popupWidth, lastHeightRef.current || 520);
+      resizeWidth(popupWidth);
       setTimeout(() => setSettingsOpen(false), 150);
     } else {
       settingsOpenRef.current = true;
       setSettingsOpen(true);
       requestAnimationFrame(() => {
-        resizeWindow(popupWidth + settingsWidth, lastHeightRef.current || 520);
+        resizeWidth(popupWidth + settingsWidth);
       });
     }
   };
@@ -359,7 +360,15 @@ export function TrayPopup() {
         <div ref={contentRef} style={{ width: popupWidth, flexShrink: 0 }}>
           <AnimatePresence mode="wait">
             {isLoading ? (
-              <div key="loading" />
+              <div
+                key="loading"
+                className="flex h-screen items-center justify-center"
+              >
+                <Loader2
+                  className="animate-spin text-primary/40"
+                  style={{ width: scaled(24), height: scaled(24) }}
+                />
+              </div>
             ) : !isAuthenticated ? (
               <motion.div
                 key="login"

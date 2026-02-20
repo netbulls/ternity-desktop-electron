@@ -1,15 +1,74 @@
-import { motion } from 'motion/react';
-import { Play } from 'lucide-react';
-// motion used for pulsing dot animation only
+import { useState, useRef, useEffect, useCallback } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import { Play, Check, X, ChevronDown } from 'lucide-react';
 import { scaled } from '@/lib/scaled';
-import type { Entry, DayGroup } from '@/lib/api-types';
+import type { Entry, DayGroup, ProjectOption } from '@/lib/api-types';
 import { formatDuration } from './tray-popup';
+import { ProjectPicker } from './project-picker';
+
+// ============================================================
+// Breathing effects (adapted from sandbox)
+// ============================================================
+
+const breathingBorderAnimation = {
+  borderColor: [
+    'hsl(var(--primary) / 0.3)',
+    'hsl(var(--primary) / 0.6)',
+    'hsl(var(--primary) / 0.3)',
+  ],
+};
+
+const breathingBorderTransition = {
+  duration: 2,
+  repeat: Infinity,
+  ease: 'easeInOut' as const,
+};
+
+function BreathingGlow() {
+  return (
+    <motion.div
+      className="pointer-events-none absolute inset-0"
+      animate={{
+        boxShadow: [
+          'inset 0 0 10px hsl(var(--primary) / 0.02)',
+          'inset 0 0 20px hsl(var(--primary) / 0.06)',
+          'inset 0 0 10px hsl(var(--primary) / 0.02)',
+        ],
+      }}
+      transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+    />
+  );
+}
+
+function SaveFlash() {
+  return (
+    <motion.div
+      className="pointer-events-none absolute inset-0"
+      initial={{ backgroundColor: 'hsl(var(--primary) / 0.08)' }}
+      animate={{ backgroundColor: 'hsl(var(--primary) / 0)' }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.6 }}
+    />
+  );
+}
+
+// ============================================================
+// Types
+// ============================================================
+
+type EditingField = 'description' | 'project' | null;
 
 interface EntriesListProps {
   currentEntry: Entry | null;
   entries: DayGroup[];
   onResume: (entryId: string) => void;
+  onUpdateEntry: (entryId: string, params: { description?: string; projectId?: string | null }) => void;
+  projects: ProjectOption[];
 }
+
+// ============================================================
+// Helpers
+// ============================================================
 
 function formatDateLabel(dateStr: string): string {
   const date = new Date(dateStr + 'T12:00:00');
@@ -22,7 +81,52 @@ function formatDateLabel(dateStr: string): string {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
 
-export function EntriesList({ currentEntry, entries, onResume }: EntriesListProps) {
+// ============================================================
+// EntriesList
+// ============================================================
+
+interface ProjectPickerState {
+  entryId: string;
+  selectedProjectId: string | null;
+  anchor: { top: number; bottom: number; left: number; right: number };
+  direction: 'down' | 'up';
+}
+
+export function EntriesList({ currentEntry, entries, onResume, onUpdateEntry, projects }: EntriesListProps) {
+  // Active edit lock — only one entry can be edited at a time
+  const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
+  // Lifted project picker state — renders outside the scrollable area
+  const [pickerState, setPickerState] = useState<ProjectPickerState | null>(null);
+
+  const handleOpenProjectPicker = useCallback((entryId: string, projectId: string | null, anchor: { top: number; bottom: number; left: number; right: number }) => {
+    const spaceBelow = window.innerHeight - anchor.bottom;
+    setPickerState({
+      entryId,
+      selectedProjectId: projectId,
+      anchor,
+      direction: spaceBelow < 250 ? 'up' : 'down',
+    });
+    setEditingEntryId(entryId);
+  }, []);
+
+  const handleCloseProjectPicker = useCallback(() => {
+    setPickerState(null);
+    setEditingEntryId(null);
+  }, []);
+
+  // Track which entry just had a project saved — for save flash
+  const [projectSavedEntryId, setProjectSavedEntryId] = useState<string | null>(null);
+
+  const handleProjectSelect = useCallback((project: ProjectOption | null) => {
+    if (pickerState) {
+      onUpdateEntry(pickerState.entryId, { projectId: project?.id ?? null });
+      setProjectSavedEntryId(pickerState.entryId);
+      setTimeout(() => setProjectSavedEntryId(null), 600);
+    }
+    setPickerState(null);
+    setEditingEntryId(null);
+  }, [pickerState, onUpdateEntry]);
+
   // Merge running entry into the entries list:
   // - Replace matching entry with currentEntry (has live local edits)
   // - Inject at top of today if not found (new entry not yet in API response)
@@ -60,22 +164,48 @@ export function EntriesList({ currentEntry, entries, onResume }: EntriesListProp
     return copy;
   })();
 
+  const selectedProject = pickerState?.selectedProjectId
+    ? projects.find((p) => p.id === pickerState.selectedProjectId) ?? null
+    : null;
+
   return (
-    <div>
-      <div style={{ maxHeight: scaled(300), overflowY: 'auto', overflowX: 'hidden' }}>
+    <>
+      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
         {enrichedEntries.map((day, dayIdx) => (
           <DayGroupRow
             key={day.date}
             day={day}
             runningEntryId={currentEntry?.id ?? null}
             onResume={onResume}
+            onUpdateEntry={onUpdateEntry}
+            projects={projects}
+            editingEntryId={editingEntryId}
+            onEditingChange={setEditingEntryId}
+            onOpenProjectPicker={handleOpenProjectPicker}
+            onCloseProjectPicker={handleCloseProjectPicker}
+            projectSavedEntryId={projectSavedEntryId}
             isFirst={dayIdx === 0}
           />
         ))}
       </div>
-    </div>
+      {/* Project picker — rendered outside the scrollable area */}
+      {pickerState && (
+        <ProjectPicker
+          selected={selectedProject}
+          onSelect={handleProjectSelect}
+          onClose={handleCloseProjectPicker}
+          projects={projects}
+          direction={pickerState.direction}
+          anchorRect={pickerState.anchor}
+        />
+      )}
+    </>
   );
 }
+
+// ============================================================
+// DayHeader
+// ============================================================
 
 function DayHeader({ label, duration }: { label: string; duration: string }) {
   return (
@@ -99,31 +229,135 @@ function DayHeader({ label, duration }: { label: string; duration: string }) {
   );
 }
 
+// ============================================================
+// EntryRow
+// ============================================================
+
 function EntryRow({
   entry,
   isRunning,
   onResume,
+  onUpdateEntry,
+  editingEntryId,
+  onEditingChange,
+  onOpenProjectPicker,
+  onCloseProjectPicker,
+  projectSavedEntryId,
 }: {
   entry: Entry;
   isRunning: boolean;
   onResume: (entryId: string) => void;
+  onUpdateEntry: (entryId: string, params: { description?: string; projectId?: string | null }) => void;
+  editingEntryId: string | null;
+  onEditingChange: (id: string | null) => void;
+  onOpenProjectPicker: (entryId: string, projectId: string | null, anchor: { top: number; bottom: number; left: number; right: number }) => void;
+  onCloseProjectPicker: () => void;
+  projectSavedEntryId: string | null;
 }) {
   const color = entry.projectColor ?? 'hsl(var(--primary))';
+  const [editingField, setEditingField] = useState<EditingField>(null);
+  const [editDesc, setEditDesc] = useState('');
+  const [savedFlash, setSavedFlash] = useState(false);
+  const editingFieldRef = useRef(editingField);
+  editingFieldRef.current = editingField;
+  const rowRef = useRef<HTMLDivElement>(null);
+  const projectLineRef = useRef<HTMLDivElement>(null);
+
+  // Auto-cancel when another entry claims the active edit, or when editing is cleared externally
+  useEffect(() => {
+    if (editingFieldRef.current === null) return;
+    if (editingEntryId === null || editingEntryId !== entry.id) {
+      setEditingField(null);
+    }
+  }, [editingEntryId, entry.id]);
+
+  const triggerSaveFlash = () => {
+    setSavedFlash(true);
+    setTimeout(() => setSavedFlash(false), 600);
+  };
+
+  const handleEditDescription = () => {
+    if (isRunning) return;
+    onEditingChange(entry.id);
+    setEditDesc(entry.description || '');
+    setEditingField('description');
+  };
+
+  const handleEditProject = () => {
+    if (isRunning) return;
+    const el = projectLineRef.current ?? rowRef.current;
+    if (el) {
+      const rect = el.getBoundingClientRect();
+      onOpenProjectPicker(entry.id, entry.projectId, {
+        top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right,
+      });
+    }
+    setEditingField('project');
+  };
+
+  const handleCancel = () => {
+    if (editingField === 'project') onCloseProjectPicker();
+    onEditingChange(null);
+    setEditingField(null);
+  };
+
+  const handleSaveDescription = useCallback(() => {
+    onEditingChange(null);
+    setEditingField(null);
+    const trimmed = editDesc.trim();
+    if (trimmed !== (entry.description || '')) {
+      onUpdateEntry(entry.id, { description: trimmed });
+    }
+    triggerSaveFlash();
+  }, [editDesc, entry.description, entry.id, onUpdateEntry, onEditingChange]);
+
+  const isEditing = editingField !== null;
+  const noDesc = !entry.description;
+  const noProject = !entry.projectId;
 
   return (
-    <div
-      className={`group flex items-center transition-colors ${
-        isRunning ? '' : 'cursor-pointer hover:bg-muted/50'
-      }`}
+    <motion.div
+      ref={rowRef}
+      className="group relative flex items-center"
       style={{
         gap: scaled(10),
         padding: `${scaled(6)} ${scaled(16)}`,
-        background: isRunning ? 'hsl(var(--primary) / 0.04)' : undefined,
       }}
-      onClick={isRunning ? undefined : () => onResume(entry.id)}
+      animate={{
+        backgroundColor: isRunning
+          ? 'hsl(var(--primary) / 0.04)'
+          : isEditing
+            ? 'hsl(var(--muted) / 0.15)'
+            : 'hsla(0, 0%, 0%, 0)',
+      }}
+      transition={{ duration: 0.2 }}
     >
+      {/* Breathing glow on editing row */}
+      {isEditing && <BreathingGlow />}
+
+      {/* Save flash */}
+      <AnimatePresence>
+        {(savedFlash || projectSavedEntryId === entry.id) && <SaveFlash />}
+      </AnimatePresence>
+
+      {/* Incomplete entry indicator — amber left border */}
+      <AnimatePresence>
+        {!isRunning && (noProject || noDesc) && (
+          <motion.div
+            className="absolute left-0 top-0 bottom-0 overflow-hidden"
+            style={{ width: 2, borderRadius: `${scaled(2)}px` }}
+            initial={{ scaleY: 0 }}
+            animate={{ scaleY: 1 }}
+            exit={{ scaleY: 0 }}
+            transition={{ type: 'spring', damping: 15, stiffness: 300 }}
+          >
+            <div className="h-full w-full" style={{ background: 'hsl(35 100% 60%)' }} />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Dot — pulsing when running */}
-      <div className="relative shrink-0" style={{ width: scaled(5), height: scaled(5) }}>
+      <div className="relative z-10 shrink-0" style={{ width: scaled(5), height: scaled(5) }}>
         {isRunning && (
           <motion.div
             className="absolute inset-0 rounded-full"
@@ -135,32 +369,151 @@ function EntryRow({
         <div className="absolute inset-0 rounded-full" style={{ background: color }} />
       </div>
 
-      {/* Description + client › project */}
-      <div className="min-w-0 flex-1">
-        <div
-          className={`truncate ${isRunning ? 'font-medium text-foreground' : 'text-foreground'}`}
-          style={{ fontSize: scaled(12) }}
-        >
-          {entry.description || 'Untitled entry'}
-        </div>
-        <div
-          className="flex items-center truncate text-muted-foreground"
-          style={{ fontSize: scaled(10), gap: scaled(4) }}
-        >
-          {entry.clientName ? (
-            <>
-              <span className="truncate">{entry.clientName}</span>
-              {entry.projectName && (
-                <>
-                  <span className="shrink-0 text-muted-foreground/30">›</span>
-                  <span className="truncate">{entry.projectName}</span>
-                </>
-              )}
-            </>
-          ) : entry.projectName ? (
-            <span className="truncate">{entry.projectName}</span>
+      {/* Description + project */}
+      <div className="relative z-10 min-w-0 flex-1">
+        {/* Description — fixed height */}
+        <div className="flex items-center" style={{ height: scaled(20) }}>
+          {editingField === 'description' ? (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="flex w-full items-center"
+              style={{ gap: scaled(6) }}
+            >
+              <motion.input
+                className="min-w-0 flex-1 rounded-md bg-muted/40 text-foreground outline-none"
+                style={{
+                  height: scaled(20),
+                  fontSize: scaled(12),
+                  padding: `0 ${scaled(6)}`,
+                  border: '1px solid hsl(var(--primary) / 0.4)',
+                }}
+                animate={breathingBorderAnimation}
+                transition={breathingBorderTransition}
+                value={editDesc}
+                onChange={(e) => setEditDesc(e.target.value)}
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSaveDescription();
+                  if (e.key === 'Escape') handleCancel();
+                }}
+              />
+              <motion.button
+                whileTap={{ scale: 0.85 }}
+                onClick={handleSaveDescription}
+                className="flex shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground"
+                style={{ width: scaled(16), height: scaled(16) }}
+              >
+                <Check style={{ width: scaled(9), height: scaled(9) }} />
+              </motion.button>
+              <motion.button
+                whileTap={{ scale: 0.85 }}
+                onClick={handleCancel}
+                className="flex shrink-0 items-center justify-center rounded-full text-muted-foreground hover:text-foreground"
+                style={{ width: scaled(16), height: scaled(16) }}
+              >
+                <X style={{ width: scaled(9), height: scaled(9) }} />
+              </motion.button>
+            </motion.div>
           ) : (
-            <span className="italic opacity-50">No project</span>
+            <div
+              className={`truncate ${
+                isRunning
+                  ? 'font-medium text-foreground'
+                  : noDesc
+                    ? 'cursor-pointer italic text-muted-foreground hover:text-primary'
+                    : 'cursor-pointer text-foreground hover:text-primary'
+              }`}
+              style={{ fontSize: scaled(12) }}
+              onClick={handleEditDescription}
+            >
+              {entry.description || 'No description'}
+            </div>
+          )}
+        </div>
+
+        {/* Project line — fixed height */}
+        <div ref={projectLineRef} className="relative flex items-center" style={{ height: scaled(16), marginTop: scaled(2) }}>
+          {editingField === 'project' ? (
+            <div className="relative flex items-center" style={{ gap: scaled(4) }}>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="flex items-center"
+                style={{ gap: scaled(4) }}
+              >
+                <motion.span
+                  className="flex cursor-pointer items-center rounded-full bg-muted/40"
+                  style={{
+                    gap: scaled(4),
+                    padding: `${scaled(1)} ${scaled(8)}`,
+                    fontSize: scaled(10),
+                    border: '1px solid hsl(var(--primary) / 0.4)',
+                  }}
+                  animate={breathingBorderAnimation}
+                  transition={breathingBorderTransition}
+                  onClick={handleCancel}
+                >
+                  <span
+                    className="rounded-full"
+                    style={{
+                      width: scaled(6),
+                      height: scaled(6),
+                      background: entry.projectColor ?? 'hsl(var(--primary))',
+                    }}
+                  />
+                  <span className="text-foreground">
+                    {entry.projectName || 'Select project'}
+                  </span>
+                  <ChevronDown
+                    style={{ width: scaled(8), height: scaled(8), transform: 'rotate(180deg)' }}
+                    className="text-muted-foreground"
+                  />
+                </motion.span>
+                <motion.button
+                  whileTap={{ scale: 0.85 }}
+                  onClick={handleCancel}
+                  className="flex items-center justify-center rounded-full text-muted-foreground hover:text-foreground"
+                  style={{ width: scaled(16), height: scaled(16) }}
+                >
+                  <X style={{ width: scaled(9), height: scaled(9) }} />
+                </motion.button>
+              </motion.div>
+            </div>
+          ) : (
+            <div
+              className="flex items-center truncate text-muted-foreground"
+              style={{ fontSize: scaled(10), gap: scaled(4) }}
+            >
+              {entry.clientName ? (
+                <span
+                  className={isRunning ? '' : 'cursor-pointer hover:text-primary'}
+                  onClick={handleEditProject}
+                >
+                  <span className="truncate">{entry.clientName}</span>
+                  {entry.projectName && (
+                    <>
+                      <span className="text-muted-foreground/30"> › </span>
+                      <span className="truncate">{entry.projectName}</span>
+                    </>
+                  )}
+                </span>
+              ) : entry.projectName ? (
+                <span
+                  className={`truncate ${isRunning ? '' : 'cursor-pointer hover:text-primary'}`}
+                  onClick={handleEditProject}
+                >
+                  {entry.projectName}
+                </span>
+              ) : (
+                <span
+                  className={`italic ${isRunning ? 'opacity-50' : 'cursor-pointer text-amber-500/70 hover:text-amber-400'}`}
+                  onClick={handleEditProject}
+                >
+                  {isRunning ? 'No project' : '+ Add project'}
+                </span>
+              )}
+            </div>
           )}
         </div>
       </div>
@@ -168,7 +521,7 @@ function EntryRow({
       {/* Duration or tracking badge */}
       {isRunning ? (
         <span
-          className="shrink-0 font-brand text-primary/70"
+          className="relative z-10 shrink-0 font-brand text-primary/70"
           style={{ fontSize: scaled(9), letterSpacing: '0.5px' }}
         >
           TRACKING
@@ -176,36 +529,52 @@ function EntryRow({
       ) : (
         <>
           <div
-            className="shrink-0 font-brand font-semibold tabular-nums text-muted-foreground"
+            className="relative z-10 shrink-0 font-brand font-semibold tabular-nums text-muted-foreground"
             style={{ fontSize: scaled(12) }}
           >
             {formatDuration(entry.durationSeconds ?? 0)}
           </div>
-          <button
-            className="flex shrink-0 items-center justify-center rounded-full text-muted-foreground/30 opacity-0 transition-all hover:bg-primary/15 hover:text-primary group-hover:opacity-100"
+          <motion.button
+            className="relative z-10 flex shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground/30 transition-all hover:bg-primary/15 hover:text-primary"
             style={{ width: scaled(22), height: scaled(22) }}
-            onClick={(e) => {
-              e.stopPropagation();
-              onResume(entry.id);
-            }}
+            whileTap={{ scale: 0.85 }}
+            onClick={() => onResume(entry.id)}
           >
             <Play style={{ width: scaled(10), height: scaled(10) }} fill="currentColor" />
-          </button>
+          </motion.button>
         </>
       )}
-    </div>
+    </motion.div>
   );
 }
+
+// ============================================================
+// DayGroupRow
+// ============================================================
 
 function DayGroupRow({
   day,
   runningEntryId,
   onResume,
+  onUpdateEntry,
+  projects,
+  editingEntryId,
+  onEditingChange,
+  onOpenProjectPicker,
+  onCloseProjectPicker,
+  projectSavedEntryId,
   isFirst,
 }: {
   day: DayGroup;
   runningEntryId: string | null;
   onResume: (entryId: string) => void;
+  onUpdateEntry: (entryId: string, params: { description?: string; projectId?: string | null }) => void;
+  projects: ProjectOption[];
+  editingEntryId: string | null;
+  onEditingChange: (id: string | null) => void;
+  onOpenProjectPicker: (entryId: string, projectId: string | null, anchor: { top: number; bottom: number; left: number; right: number }) => void;
+  onCloseProjectPicker: () => void;
+  projectSavedEntryId: string | null;
   isFirst: boolean;
 }) {
   if (day.entries.length === 0) return null;
@@ -224,6 +593,12 @@ function DayGroupRow({
           entry={entry}
           isRunning={entry.id === runningEntryId}
           onResume={onResume}
+          onUpdateEntry={onUpdateEntry}
+          editingEntryId={editingEntryId}
+          onEditingChange={onEditingChange}
+          onOpenProjectPicker={onOpenProjectPicker}
+          onCloseProjectPicker={onCloseProjectPicker}
+          projectSavedEntryId={projectSavedEntryId}
         />
       ))}
     </>

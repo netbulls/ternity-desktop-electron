@@ -23,6 +23,7 @@ interface DataContextValue {
   stopTimer: () => Promise<void>;
   resumeTimer: (entryId: string) => Promise<void>;
   updateTimer: (params: { description?: string; projectId?: string | null }) => Promise<void>;
+  updateEntry: (entryId: string, params: { description?: string; projectId?: string | null }) => void;
   patchTimerLocal: (params: { description?: string; projectId?: string | null }) => void;
 }
 
@@ -258,6 +259,50 @@ export function DataProvider({ children }: { children: ReactNode }) {
     [apiBaseUrl, environment, timer.running, timer.entry, patchTimerLocal],
   );
 
+  const updateEntry = useCallback(
+    (entryId: string, params: { description?: string; projectId?: string | null }) => {
+      // Optimistic update — patch the entry in the local list immediately
+      setEntries((prev) =>
+        prev.map((day) => ({
+          ...day,
+          entries: day.entries.map((e) => {
+            if (e.id !== entryId) return e;
+            const patch: Partial<Entry> = {};
+            if (params.description !== undefined) patch.description = params.description;
+            if (params.projectId !== undefined) {
+              if (params.projectId === null) {
+                patch.projectId = null;
+                patch.projectName = null;
+                patch.projectColor = null;
+                patch.clientName = null;
+              } else {
+                const proj = projects.find((p) => p.id === params.projectId);
+                if (proj) {
+                  patch.projectId = proj.id;
+                  patch.projectName = proj.name;
+                  patch.projectColor = proj.color;
+                  patch.clientName = proj.clientName;
+                }
+              }
+            }
+            return { ...e, ...patch };
+          }),
+        })),
+      );
+      // Fire API call in background, refetch on completion
+      apiFetch(apiBaseUrl, environment, `/api/entries/${entryId}`, {
+        method: 'PATCH',
+        body: params,
+      })
+        .then(() => fetchEntries())
+        .catch((err) => {
+          console.warn('[data] updateEntry failed:', err instanceof Error ? err.message : err);
+          fetchEntries(); // Revert optimistic update
+        });
+    },
+    [apiBaseUrl, environment, fetchEntries, projects],
+  );
+
   return (
     <DataContext.Provider
       value={{
@@ -272,6 +317,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
         stopTimer,
         resumeTimer,
         updateTimer,
+        updateEntry,
         patchTimerLocal,
       }}
     >

@@ -70,6 +70,7 @@ export function LayeredLayout({
   onStart,
   onStop,
   onResume,
+  onUpdateEntry,
   selectedProject,
   onProjectSelect,
   description,
@@ -284,7 +285,7 @@ export function LayeredLayout({
       </motion.div>
 
       <StatsStrip stats={stats} />
-      <EntriesList currentEntry={currentEntry} entries={entries} onResume={onResume} />
+      <EntriesList currentEntry={currentEntry} entries={entries} onResume={onResume} onUpdateEntry={onUpdateEntry} projects={projects} />
       <PopupFooter webAppUrl={webAppUrl} />
     </>
   );

@@ -121,13 +121,15 @@ done
 # --- Windows (built on Windows VM via SSH) ---
 echo "==> [6/7] Building Windows (arm64 + x64 via SSH to ${WIN_HOST})..."
 echo "  Syncing project to Windows VM..."
-# Sync source and config (not node_modules or dist)
-ssh "$WIN_HOST" "set \"PATH=${WIN_PATH};%PATH%\" && cd ${WIN_PROJECT_DIR} && C:\\\"Program Files\"\\Git\\cmd\\git.exe pull --ff-only" 2>/dev/null || true
+# Pull latest code, sync config files with version already injected
+ssh "$WIN_HOST" "set \"PATH=${WIN_PATH};%PATH%\" && cd ${WIN_PROJECT_DIR} && git pull --ff-only" || true
 scp electron-builder.yml "${WIN_HOST}:ternity-desktop/electron-builder.yml"
 scp package.json "${WIN_HOST}:ternity-desktop/package.json"
 
 echo "==> [7/7] Running Windows build..."
-ssh "$WIN_HOST" "set \"PATH=${WIN_PATH};%PATH%\" && cd ${WIN_PROJECT_DIR} && pnpm install --frozen-lockfile && pnpm build && pnpm electron-builder --win --arm64 --x64 --config electron-builder.yml"
+# Skip version-inject (package.json already has correct version from scp)
+# Run electron-vite build directly, then electron-builder
+ssh "$WIN_HOST" "set \"PATH=${WIN_PATH};%PATH%\" && cd ${WIN_PROJECT_DIR} && pnpm install --frozen-lockfile && pnpm exec electron-vite build && pnpm electron-builder --win --arm64 --x64 --config electron-builder.yml"
 
 echo "  Copying Windows artifacts..."
 for arch in arm64 x64; do

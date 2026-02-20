@@ -14,6 +14,7 @@ export function LiquidGlassLayout({
   onStart,
   onStop,
   onResume,
+  onUpdateEntry,
   selectedProject,
   onProjectSelect,
   description,
@@ -31,7 +32,7 @@ export function LiquidGlassLayout({
   const isIncomplete = timerRunning && !currentEntry?.description;
 
   return (
-    <div className="flex flex-col" style={{ padding: scaled(8), gap: scaled(8) }}>
+    <div className="flex min-h-0 flex-1 flex-col" style={{ padding: scaled(8), gap: scaled(8) }}>
       {/* Timer Glass Card — z-10 so project picker renders above the stats card below */}
       <motion.div
         className="relative z-10"
@@ -288,7 +289,7 @@ export function LiquidGlassLayout({
 
       {/* Stats + Entries Glass Card */}
       <div
-        className="relative overflow-hidden"
+        className="relative flex min-h-0 flex-1 flex-col"
         style={{
           borderRadius: scaled(14),
           background: 'hsl(var(--card) / 0.6)',
@@ -308,7 +309,7 @@ export function LiquidGlassLayout({
 
         {/* Stats mini-cards */}
         <div
-          className="relative grid grid-cols-2"
+          className="relative shrink-0 grid grid-cols-2"
           style={{ gap: scaled(6), padding: `${scaled(12)} ${scaled(12)} ${scaled(6)}` }}
         >
           <div
@@ -356,15 +357,15 @@ export function LiquidGlassLayout({
         </div>
 
         {/* Separator */}
-        <div style={{ margin: `0 ${scaled(12)}`, borderTop: '1px solid hsl(var(--border) / 0.06)' }} />
+        <div className="shrink-0" style={{ margin: `0 ${scaled(12)}`, borderTop: '1px solid hsl(var(--border) / 0.06)' }} />
 
         {/* Entries */}
-        <EntriesList currentEntry={currentEntry} entries={entries} onResume={onResume} />
+        <EntriesList currentEntry={currentEntry} entries={entries} onResume={onResume} onUpdateEntry={onUpdateEntry} projects={projects} />
 
         {/* Footer separator + link */}
-        <div style={{ margin: `0 ${scaled(12)}`, borderTop: '1px solid hsl(var(--border) / 0.06)' }} />
+        <div className="shrink-0" style={{ margin: `0 ${scaled(12)}`, borderTop: '1px solid hsl(var(--border) / 0.06)' }} />
         <div
-          className="flex items-center justify-center"
+          className="flex shrink-0 items-center justify-center"
           style={{ padding: `${scaled(8)} ${scaled(14)}` }}
         >
           <button

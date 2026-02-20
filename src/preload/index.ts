@@ -26,4 +26,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getRememberPosition: () => ipcRenderer.invoke('app:get-remember-position'),
   setRememberPosition: (enabled: boolean) =>
     ipcRenderer.invoke('app:set-remember-position', enabled),
+  getLastHeight: () => ipcRenderer.invoke('app:get-last-height'),
 });

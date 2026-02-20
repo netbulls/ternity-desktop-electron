@@ -3,8 +3,17 @@
 ## [Unreleased]
 
 ### Added
+- Inline editing — edit entry descriptions and projects directly in the entries list
 - Default project preference — pre-selects in timer form, persists across sessions
 - Click-outside to dismiss popup on macOS (previously only via Escape or tray toggle)
+- Windows dark/light tray icons — auto-switch based on taskbar theme
+- User-resizable window height (400–1200px), persisted across sessions
+
+### Fixed
+- Project picker dropdown positioning — was off-screen due to CSS calc strings used in JS arithmetic
+- Windows Aero Snap causing vertical maximize during manual resize (set maximizable: false)
+- Windows settings panel toggle causing width overshoot/shrink (programmaticResize guard)
+- Linux window position not restored — save position on hide/close since moved event never fires on Wayland
 
 ### Changed
 - macOS blur handling uses space-change detection to survive space switches while allowing click-outside dismiss

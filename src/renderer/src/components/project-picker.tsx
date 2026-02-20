@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { Search, Clock, Check, X } from 'lucide-react';
 import { scaled } from '@/lib/scaled';
+import { useScale } from '@/providers/scale-provider';
 import type { ProjectOption } from '@/lib/api-types';
 
 export function ProjectPicker({
@@ -10,13 +12,21 @@ export function ProjectPicker({
   onClose,
   projects,
   align = 'left',
+  direction = 'down',
+  anchorRect,
 }: {
   selected: ProjectOption | null;
   onSelect: (project: ProjectOption | null) => void;
   onClose: () => void;
   projects: ProjectOption[];
   align?: 'left' | 'right';
+  direction?: 'down' | 'up';
+  /** When provided, picker uses fixed positioning relative to viewport instead of absolute. */
+  anchorRect?: { top: number; bottom: number; left: number; right: number };
 }) {
+  const { scale } = useScale();
+  /** Numeric pixel value for JS arithmetic (fixed positioning). */
+  const px = (v: number) => Math.round(v * scale);
   const ref = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const [search, setSearch] = useState('');
@@ -95,18 +105,39 @@ export function ProjectPicker({
         ...grouped,
       ];
 
-  return (
+  // Compute fixed position styles (clamped to viewport) — must use numeric px for JS arithmetic
+  const fixedStyle = anchorRect
+    ? (() => {
+        const w = px(260);
+        let left = align === 'right' ? anchorRect.right - w : anchorRect.left;
+        // Clamp horizontally
+        left = Math.max(4, Math.min(left, window.innerWidth - w - 4));
+        if (direction === 'up') {
+          const bottom = window.innerHeight - anchorRect.top + px(4);
+          return { position: 'fixed' as const, left, bottom, width: w };
+        }
+        const top = anchorRect.bottom + px(4);
+        return { position: 'fixed' as const, left, top, width: w };
+      })()
+    : null;
+
+  const picker = (
     <motion.div
       ref={ref}
-      className={`absolute top-full z-50 overflow-hidden rounded-lg border border-border bg-background ${align === 'right' ? 'right-0' : 'left-0'}`}
+      className={`overflow-hidden rounded-lg border border-border bg-background ${
+        anchorRect
+          ? ''
+          : `absolute ${direction === 'up' ? 'bottom-full' : 'top-full'} ${align === 'right' ? 'right-0' : 'left-0'}`
+      }`}
       style={{
+        zIndex: 9999,
         width: scaled(260),
-        marginTop: scaled(4),
+        ...(fixedStyle ?? (direction === 'up' ? { marginBottom: scaled(4) } : { marginTop: scaled(4) })),
         boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
       }}
-      initial={{ opacity: 0, y: -4, scale: 0.97 }}
+      initial={{ opacity: 0, y: direction === 'up' ? 4 : -4, scale: 0.97 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={{ opacity: 0, y: -4, scale: 0.97 }}
+      exit={{ opacity: 0, y: direction === 'up' ? 4 : -4, scale: 0.97 }}
       transition={{ duration: 0.15 }}
     >
       {/* Search */}
@@ -250,4 +281,6 @@ export function ProjectPicker({
       </div>
     </motion.div>
   );
+
+  return anchorRect ? createPortal(picker, document.body) : picker;
 }

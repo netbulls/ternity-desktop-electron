@@ -48,5 +48,6 @@ interface Window {
     setDefaultProject: (projectId: string | null) => Promise<void>;
     getRememberPosition: () => Promise<boolean>;
     setRememberPosition: (enabled: boolean) => Promise<void>;
+    getLastHeight: () => Promise<number>;
   };
 }

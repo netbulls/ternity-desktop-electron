@@ -5,6 +5,7 @@ import {
   Menu,
   screen,
   nativeImage,
+  nativeTheme,
   ipcMain,
   shell,
   systemPreferences,
@@ -35,6 +36,9 @@ let savedPosition: { x: number; y: number } | null = null;
 // Linux: suppress blur briefly after tray click (GNOME fires blur immediately after show)
 let blurSuppressedUntil = 0;
 
+// Guard: on Windows, resize event fires synchronously during setSize — skip width enforcement
+let programmaticResize = false;
+
 // macOS: track space switches to distinguish them from click-outside blurs.
 // NSWorkspaceActiveSpaceDidChangeNotification fires when the user switches spaces;
 // we set a timestamp so the blur handler can detect the transition and re-focus
@@ -43,27 +47,38 @@ let spaceChangedAt = 0;
 
 function loadSavedPosition(): void {
   const config = readConfig();
-  if (!config.rememberPosition) return;
   if (config.windowX != null && config.windowY != null) {
     savedPosition = { x: config.windowX as number, y: config.windowY as number };
   }
 }
 
 function savePosition(x: number, y: number): void {
-  const config = readConfig();
-  if (!config.rememberPosition) return;
   savedPosition = { x, y };
+  const config = readConfig();
   config.windowX = x;
   config.windowY = y;
   writeConfig(config);
 }
 
+const DEFAULT_POPUP_HEIGHT = 730;
+const MIN_POPUP_HEIGHT = 400;
+const MAX_POPUP_HEIGHT = 1200;
+
+function loadSavedHeight(): number {
+  const config = readConfig();
+  const h = config.windowHeight as number | undefined;
+  if (h != null && h >= MIN_POPUP_HEIGHT && h <= MAX_POPUP_HEIGHT) return h;
+  return DEFAULT_POPUP_HEIGHT;
+}
+
+let popupHeight = DEFAULT_POPUP_HEIGHT;
+
 function createPopup(): BrowserWindow {
   const win = new BrowserWindow({
     width: 380,
-    height: 520,
+    height: popupHeight,
     frame: false,
-    resizable: false,
+    resizable: true,
     movable: true,
     skipTaskbar: true,
     show: false,
@@ -74,6 +89,7 @@ function createPopup(): BrowserWindow {
     hasShadow: true,
     backgroundColor: '#0a0a0a',
     visibleOnAllWorkspaces: !isLinux,
+    maximizable: false,
     fullscreenable: false,
     type: process.platform === 'darwin' ? 'panel' : undefined,
     webPreferences: {
@@ -92,6 +108,17 @@ function createPopup(): BrowserWindow {
     win.loadURL(process.env['ELECTRON_RENDERER_URL']);
   } else {
     win.loadFile(join(__dirname, '../renderer/index.html'));
+  }
+
+  // Save position when window is hidden or closed.
+  // On Linux/Wayland the 'moved' event never fires, so this is the primary save mechanism.
+  // 'hide' covers blur/Escape/toggle; 'close' covers app quit.
+  for (const event of ['hide', 'close'] as const) {
+    win.on(event, () => {
+      if (win.isDestroyed()) return;
+      const [x, y] = win.getPosition();
+      savePosition(x, y);
+    });
   }
 
   // Blur handling — platform-specific
@@ -149,6 +176,21 @@ function createPopup(): BrowserWindow {
     log.debug('Window moved to', { x, y });
   });
 
+  // Save height when user resizes vertically (debounced)
+  let heightSaveTimer: ReturnType<typeof setTimeout> | null = null;
+  win.on('resize', () => {
+    if (programmaticResize) return;
+    const [, h] = win.getSize();
+    popupHeight = h;
+    if (heightSaveTimer) clearTimeout(heightSaveTimer);
+    heightSaveTimer = setTimeout(() => {
+      const config = readConfig();
+      config.windowHeight = h;
+      writeConfig(config);
+      log.debug('Window height saved', h);
+    }, 500);
+  });
+
   return win;
 }
 
@@ -177,14 +219,23 @@ function positionPopup(): void {
   let x: number;
   let y: number;
 
+  const wa = display.workArea;
+
   if (hasTrayBounds) {
-    // Center below tray icon
+    // Center horizontally on tray icon
     x = Math.round(trayBounds.x + trayBounds.width / 2 - windowBounds.width / 2);
-    y = Math.round(trayBounds.y + trayBounds.height + 4);
+    // macOS: tray at top → popup below; Windows/Linux: tray at bottom → popup above
+    const trayAtTop = trayBounds.y < wa.y + wa.height / 2;
+    if (trayAtTop) {
+      y = Math.round(trayBounds.y + trayBounds.height + 4);
+    } else {
+      // Position flush with bottom of work area (just above taskbar)
+      y = wa.y + wa.height - windowBounds.height - 4;
+    }
   } else {
     // Fallback: top-right corner of work area
-    x = display.workArea.x + display.workArea.width - windowBounds.width - 8;
-    y = display.workArea.y + 8;
+    x = wa.x + wa.width - windowBounds.width - 8;
+    y = wa.y + 8;
   }
 
   // Clamp to screen bounds
@@ -226,9 +277,12 @@ function togglePopup(): void {
 }
 
 function getTrayIconName(): string {
-  if (!isLinux) return 'trayTemplate.png';
-  // Linux: template images don't auto-invert. GNOME/KDE panels are dark
-  // across all major distros, so always use the white icon.
+  if (process.platform === 'darwin') return 'trayTemplate.png';
+  if (process.platform === 'win32') {
+    // Windows: detect taskbar theme and use appropriate icon
+    return nativeTheme.shouldUseDarkColors ? 'trayLight.png' : 'trayDark.png';
+  }
+  // Linux: GNOME/KDE panels are dark across all major distros
   return 'trayLight.png';
 }
 
@@ -237,7 +291,7 @@ function createTray(): void {
   const trayIconPath = join(resourceDir, getTrayIconName());
 
   const trayImage = nativeImage.createFromPath(trayIconPath);
-  if (!isLinux) trayImage.setTemplateImage(true);
+  if (process.platform === 'darwin') trayImage.setTemplateImage(true);
 
   tray = new Tray(trayImage);
   tray.setToolTip('Ternity');
@@ -286,25 +340,50 @@ app.whenReady().then(() => {
   }
 
   loadSavedPosition();
+  popupHeight = loadSavedHeight();
   createTray();
   popup = createPopup();
+
+  // Windows: update tray icon when user switches light/dark mode
+  if (process.platform === 'win32') {
+    nativeTheme.on('updated', () => {
+      if (!tray) return;
+      const resourceDir = app.isPackaged ? process.resourcesPath : join(__dirname, '../../resources');
+      const iconPath = join(resourceDir, getTrayIconName());
+      tray.setImage(nativeImage.createFromPath(iconPath));
+    });
+  }
 
   // IPC: resize window (for settings expand)
   // On first resize, show the popup (content is properly sized, no visual jank)
   let initialShowDone = isLinux; // Linux: skip auto-show, tray click opens it
-  ipcMain.on('resize-window', (_event, width: number, height: number) => {
+  ipcMain.on('resize-window', (_event, width: number) => {
     if (!popup) return;
     const w = Math.round(width);
-    const h = Math.round(height);
-    if (isLinux) {
-      // Linux: setSize can't shrink a non-resizable window,
-      // so temporarily allow resize, update min size, resize, then lock again
-      popup.setResizable(true);
-      popup.setMinimumSize(w, h);
-      popup.setSize(w, h);
-      popup.setResizable(false);
-    } else {
-      popup.setSize(w, h, initialShowDone); // no animation on initial resize
+
+    // Set size, then lock width while allowing vertical resize via min/max constraints
+    // Guard: on Windows, resize event fires synchronously during setSize — skip width enforcement
+    programmaticResize = true;
+    popup.setMinimumSize(1, 1);
+    popup.setMaximumSize(0, 0);
+    popup.setSize(w, popupHeight, initialShowDone);
+    // Lock width: min and max width are the same; height range allows vertical resize
+    popup.setMinimumSize(w, MIN_POPUP_HEIGHT);
+    popup.setMaximumSize(w, MAX_POPUP_HEIGHT);
+    programmaticResize = false;
+
+    // Keep popup on-screen after width change (settings expand can push it off-edge)
+    if (initialShowDone) {
+      const bounds = popup.getBounds();
+      const display = screen.getDisplayNearestPoint({ x: bounds.x, y: bounds.y });
+      const wa = display.workArea;
+      let nx = bounds.x;
+      if (bounds.x + w > wa.x + wa.width) nx = wa.x + wa.width - w;
+      if (nx < wa.x) nx = wa.x;
+      if (nx !== bounds.x) {
+        popup.setPosition(nx, bounds.y);
+        savedPosition = { x: nx, y: bounds.y };
+      }
     }
     if (!initialShowDone) {
       initialShowDone = true;
