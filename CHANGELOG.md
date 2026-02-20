@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Added
+- Windows installer code signing — shows "Open Source Developer, Przemyslaw Rudzki" instead of "Unknown Publisher"
+
 ## [0.4.0] - 2026-02-20
 
 ### Added
