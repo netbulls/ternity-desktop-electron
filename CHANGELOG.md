@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-02-20
+
 ### Added
 - Inline editing — edit entry descriptions and projects directly in the entries list
 - Default project preference — pre-selects in timer form, persists across sessions
