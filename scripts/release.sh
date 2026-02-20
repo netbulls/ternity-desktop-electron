@@ -14,6 +14,7 @@
 #
 # Requires env vars from .env.signing:
 #   APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID (macOS notarization)
+#   CERTUM_CERT_SHA1 (Windows code signing — SimplySign must be authenticated)
 #   DRIVE_{LOCAL|DEV|PROD}_API_KEY (upload)
 #   DRIVE_VPS_HOST (for dev/prod)
 #
@@ -80,7 +81,7 @@ ARTIFACTS=()
 # --- Windows VM config ---
 WIN_HOST="windows-arm64"
 WIN_PROJECT_DIR="C:\\Users\\erace\\ternity-desktop"
-WIN_PATH="C:\\Program Files\\nodejs;C:\\Users\\erace\\AppData\\Roaming\\npm;C:\\Program Files\\Git\\bin"
+WIN_PATH="C:\\Program Files\\nodejs;C:\\Users\\erace\\AppData\\Roaming\\npm;C:\\Program Files\\Git\\bin;C:\\Program Files (x86)\\Windows Kits\\10\\bin\\10.0.18362.0\\x86"
 
 # --- macOS arm64 ---
 echo "==> [1/7] Building macOS arm64..."
@@ -125,11 +126,20 @@ echo "  Syncing project to Windows VM..."
 ssh "$WIN_HOST" "set \"PATH=${WIN_PATH};%PATH%\" && cd ${WIN_PROJECT_DIR} && git pull --ff-only" || true
 scp electron-builder.yml "${WIN_HOST}:ternity-desktop/electron-builder.yml"
 scp package.json "${WIN_HOST}:ternity-desktop/package.json"
+scp scripts/win-sign.js "${WIN_HOST}:ternity-desktop/scripts/win-sign.js"
+
+SIGN_ENV=""
+if [ -n "${CERTUM_CERT_SHA1:-}" ]; then
+  echo "  Windows code signing: ENABLED (thumbprint: ${CERTUM_CERT_SHA1:0:8}...)"
+  SIGN_ENV="set \"CERTUM_CERT_SHA1=${CERTUM_CERT_SHA1}\" && "
+else
+  echo "  Windows code signing: DISABLED (no CERTUM_CERT_SHA1)"
+fi
 
 echo "==> [7/7] Running Windows build..."
 # Skip version-inject (package.json already has correct version from scp)
 # Run electron-vite build directly, then electron-builder
-ssh "$WIN_HOST" "set \"PATH=${WIN_PATH};%PATH%\" && cd ${WIN_PROJECT_DIR} && pnpm install --frozen-lockfile && pnpm exec electron-vite build && pnpm electron-builder --win --arm64 --x64 --config electron-builder.yml"
+ssh "$WIN_HOST" "set \"PATH=${WIN_PATH};%PATH%\" && ${SIGN_ENV}cd ${WIN_PROJECT_DIR} && pnpm install --frozen-lockfile && pnpm exec electron-vite build && pnpm electron-builder --win --arm64 --x64 --config electron-builder.yml"
 
 echo "  Copying Windows artifacts..."
 for arch in arm64 x64; do
