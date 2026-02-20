@@ -6,8 +6,7 @@ dist/
 *.AppImage
 *.deb
 .DS_Store
-.env.local
-.env.signing
+.env.*
 *.p12
 *.cer
 *.csr
