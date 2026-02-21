@@ -9,6 +9,20 @@ import type { LayoutProps } from '../tray-popup';
 import { formatTimer, formatDuration } from '../tray-popup';
 import type { Stats } from '@/lib/api-types';
 
+const breathingBorderAnimation = {
+  borderColor: [
+    'hsl(var(--primary) / 0.3)',
+    'hsl(var(--primary) / 0.6)',
+    'hsl(var(--primary) / 0.3)',
+  ],
+};
+
+const breathingBorderTransition = {
+  duration: 2,
+  repeat: Infinity,
+  ease: 'easeInOut' as const,
+};
+
 function MiniCards({ stats }: { stats: Stats }) {
   return (
     <div
@@ -97,12 +111,29 @@ export function HeroLayout({
 }: LayoutProps) {
   const digits = formatTimer(elapsed).split('');
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerAnchor, setPickerAnchor] = useState<{ top: number; bottom: number; left: number; right: number } | null>(null);
+  const [pillPop, setPillPop] = useState(false);
   const pillRef = useRef<HTMLDivElement>(null);
 
+  const handlePillClick = () => {
+    if (pillRef.current) {
+      const rect = pillRef.current.getBoundingClientRect();
+      setPickerAnchor({ top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right });
+    }
+    setPickerOpen((o) => !o);
+  };
+
+  const handleProjectSelect = (project: Parameters<typeof onProjectSelect>[0]) => {
+    onProjectSelect(project);
+    setPickerOpen(false);
+    setPillPop(true);
+    setTimeout(() => setPillPop(false), 500);
+  };
+
   return (
-    <>
+    <div className="flex min-h-0 flex-1 flex-col">
       <motion.div
-        className="relative text-center"
+        className="relative shrink-0 text-center"
         animate={{
           backgroundColor: timerRunning ? 'hsl(var(--primary) / 0.03)' : 'transparent',
         }}
@@ -261,15 +292,18 @@ export function HeroLayout({
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.15 }}
               >
-                <div
+                <motion.div
                   ref={pillRef}
-                  className="flex cursor-pointer items-center rounded border border-border bg-card text-muted-foreground transition-colors hover:border-primary/40"
+                  className={`flex cursor-pointer items-center rounded bg-card text-muted-foreground transition-colors hover:border-primary/40 ${pillPop ? 'pill-pop' : ''}`}
                   style={{
                     gap: scaled(5),
                     padding: `${scaled(5)} ${scaled(10)}`,
                     fontSize: scaled(11),
+                    border: '1px solid',
                   }}
-                  onClick={() => setPickerOpen((o) => !o)}
+                  animate={pickerOpen ? breathingBorderAnimation : { borderColor: 'hsl(var(--border))' }}
+                  transition={pickerOpen ? breathingBorderTransition : { duration: 0.2 }}
+                  onClick={handlePillClick}
                 >
                   {selectedProject ? (
                     <>
@@ -290,14 +324,15 @@ export function HeroLayout({
                     </>
                   )}
                   <ChevronDown style={{ width: scaled(10), height: scaled(10) }} />
-                </div>
+                </motion.div>
                 <AnimatePresence>
                   {pickerOpen && (
                     <ProjectPicker
                       selected={selectedProject}
-                      onSelect={onProjectSelect}
+                      onSelect={handleProjectSelect}
                       onClose={() => setPickerOpen(false)}
                       projects={projects}
+                      anchorRect={pickerAnchor ?? undefined}
                     />
                   )}
                 </AnimatePresence>
@@ -307,9 +342,15 @@ export function HeroLayout({
         </div>
       </motion.div>
 
-      <MiniCards stats={stats} />
-      <EntriesList currentEntry={currentEntry} entries={entries} onResume={onResume} onUpdateEntry={onUpdateEntry} projects={projects} />
-      <PopupFooter webAppUrl={webAppUrl} />
-    </>
+      <div className="shrink-0">
+        <MiniCards stats={stats} />
+      </div>
+      <div className="flex min-h-0 flex-1 flex-col">
+        <EntriesList currentEntry={currentEntry} entries={entries} onResume={onResume} onUpdateEntry={onUpdateEntry} projects={projects} />
+      </div>
+      <div className="shrink-0">
+        <PopupFooter webAppUrl={webAppUrl} />
+      </div>
+    </div>
   );
 }

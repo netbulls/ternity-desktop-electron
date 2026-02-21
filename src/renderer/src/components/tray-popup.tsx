@@ -355,9 +355,9 @@ export function TrayPopup() {
             'radial-gradient(ellipse at 50% 30%, hsl(var(--primary) / 0.03) 0%, transparent 70%)',
         }}
       />
-      <div className="flex">
+      <div className="flex min-h-0 flex-1">
         {/* Main popup column — stable ref for ResizeObserver */}
-        <div ref={contentRef} style={{ width: popupWidth, flexShrink: 0 }}>
+        <div ref={contentRef} className="flex flex-col" style={{ width: popupWidth, flexShrink: 0 }}>
           <AnimatePresence mode="wait">
             {isLoading ? (
               <div
@@ -382,6 +382,7 @@ export function TrayPopup() {
             ) : (
               <motion.div
                 key="timer"
+                className="flex min-h-0 flex-1 flex-col"
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: -20 }}

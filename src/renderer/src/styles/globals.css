@@ -4,6 +4,44 @@
 @tailwind components;
 @tailwind utilities;
 
+@keyframes pill-pop {
+  0% {
+    transform: scale(1);
+    border-color: hsl(var(--primary) / 0.4);
+  }
+  40% {
+    transform: scale(1.1);
+    border-color: hsl(142 71% 45% / 0.8);
+  }
+  100% {
+    transform: scale(1);
+    border-color: hsl(var(--border));
+  }
+}
+
+.pill-pop {
+  animation: pill-pop 0.45s ease-out;
+  will-change: transform, border-color;
+}
+
+@keyframes liquid-drift {
+  0% {
+    left: -5%;
+  }
+  100% {
+    left: 70%;
+  }
+}
+
+@keyframes liquid-drift-2 {
+  0% {
+    right: -5%;
+  }
+  100% {
+    right: 75%;
+  }
+}
+
 @layer base {
   :root {
     --t-scale: 1.1;

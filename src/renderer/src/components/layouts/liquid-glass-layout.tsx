@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Play, Square, FolderKanban, ChevronDown, ExternalLink } from 'lucide-react';
 import { scaled } from '@/lib/scaled';
@@ -7,6 +7,21 @@ import { ProjectPicker } from '../project-picker';
 import { EntriesList } from '../entries-list';
 import type { LayoutProps } from '../tray-popup';
 import { formatTimer, formatDuration } from '../tray-popup';
+
+const breathingBorderAnimation = {
+  borderColor: [
+    'hsl(var(--primary) / 0.3)',
+    'hsl(var(--primary) / 0.6)',
+    'hsl(var(--primary) / 0.3)',
+  ],
+};
+
+const breathingBorderTransition = {
+  duration: 2,
+  repeat: Infinity,
+  ease: 'easeInOut' as const,
+};
+
 export function LiquidGlassLayout({
   timerRunning,
   elapsed,
@@ -27,9 +42,26 @@ export function LiquidGlassLayout({
 }: LayoutProps) {
   const digits = formatTimer(elapsed).split('');
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerAnchor, setPickerAnchor] = useState<{ top: number; bottom: number; left: number; right: number } | null>(null);
+  const [pillPop, setPillPop] = useState(false);
   const [inputFocused, setInputFocused] = useState(false);
   const pillRef = useRef<HTMLSpanElement>(null);
   const isIncomplete = timerRunning && !currentEntry?.description;
+
+  const handlePillClick = () => {
+    if (pillRef.current) {
+      const rect = pillRef.current.getBoundingClientRect();
+      setPickerAnchor({ top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right });
+    }
+    setPickerOpen((o) => !o);
+  };
+
+  const handleProjectSelect = (project: Parameters<typeof onProjectSelect>[0]) => {
+    onProjectSelect(project);
+    setPickerOpen(false);
+    setPillPop(true);
+    setTimeout(() => setPillPop(false), 500);
+  };
 
   return (
     <div className="flex min-h-0 flex-1 flex-col" style={{ padding: scaled(8), gap: scaled(8) }}>
@@ -200,14 +232,20 @@ export function LiquidGlassLayout({
             minWidth: 0,
           }}
         >
-          <span
+          <motion.span
             ref={pillRef}
-            className="flex cursor-pointer items-center text-muted-foreground transition-colors hover:text-foreground"
+            className={`flex cursor-pointer items-center text-muted-foreground transition-colors hover:text-foreground ${pillPop ? 'pill-pop' : ''}`}
             style={{
               gap: scaled(5),
               fontSize: scaled(11),
+              border: '1px solid',
+              borderRadius: scaled(12),
+              padding: `${scaled(2)} ${scaled(8)}`,
+              margin: `0 ${scaled(-8)}`,
             }}
-            onClick={() => setPickerOpen((o) => !o)}
+            animate={pickerOpen ? breathingBorderAnimation : { borderColor: 'transparent' }}
+            transition={pickerOpen ? breathingBorderTransition : { duration: 0.2 }}
+            onClick={handlePillClick}
           >
             {selectedProject ? (
               <>
@@ -222,7 +260,7 @@ export function LiquidGlassLayout({
                 {selectedProject.clientName && (
                   <>
                     <span>{selectedProject.clientName}</span>
-                    <span className="text-muted-foreground/30">›</span>
+                    <span className="text-muted-foreground/30">&rsaquo;</span>
                   </>
                 )}
                 <span>{selectedProject.name}</span>
@@ -242,18 +280,61 @@ export function LiquidGlassLayout({
                 transform: pickerOpen ? 'rotate(180deg)' : 'rotate(0)',
               }}
             />
-          </span>
+          </motion.span>
           <AnimatePresence>
             {pickerOpen && (
               <ProjectPicker
                 selected={selectedProject}
-                onSelect={onProjectSelect}
+                onSelect={handleProjectSelect}
                 onClose={() => setPickerOpen(false)}
                 projects={projects}
+                anchorRect={pickerAnchor ?? undefined}
               />
             )}
           </AnimatePresence>
         </div>
+
+        {/* LiquidEdge — drifting teal blobs when timer is running */}
+        <AnimatePresence>
+          {timerRunning && !isIncomplete && (
+            <motion.div
+              className="pointer-events-none absolute bottom-0 left-0 right-0 overflow-hidden"
+              style={{
+                height: 3,
+                borderRadius: `0 0 ${scaled(14)}px ${scaled(14)}px`,
+              }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
+              {/* Subtle glow underneath */}
+              <div
+                className="absolute inset-0"
+                style={{
+                  background: 'linear-gradient(90deg, transparent, hsl(var(--primary) / 0.03), transparent)',
+                }}
+              />
+              {/* Blob 1 */}
+              <div
+                className="absolute top-0 h-full"
+                style={{
+                  width: '35%',
+                  background: 'radial-gradient(ellipse at center, hsl(var(--primary) / 0.6) 0%, transparent 70%)',
+                  animation: 'liquid-drift 5s ease-in-out infinite alternate',
+                }}
+              />
+              {/* Blob 2 */}
+              <div
+                className="absolute top-0 h-full"
+                style={{
+                  width: '20%',
+                  background: 'radial-gradient(ellipse at center, hsl(var(--primary) / 0.4) 0%, transparent 70%)',
+                  animation: 'liquid-drift-2 7s ease-in-out infinite alternate',
+                }}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Incomplete progress line */}
         <AnimatePresence>
@@ -289,14 +370,22 @@ export function LiquidGlassLayout({
 
       {/* Stats + Entries Glass Card */}
       <div
-        className="relative flex min-h-0 flex-1 flex-col"
+        className="relative flex min-h-0 flex-1 flex-col overflow-hidden"
         style={{
           borderRadius: scaled(14),
-          background: 'hsl(var(--card) / 0.6)',
-          backdropFilter: 'blur(12px)',
           border: '1px solid hsl(var(--border) / 0.3)',
         }}
       >
+        {/* Glass blur layer — separate from content so child backdrop-filters work */}
+        <div
+          className="pointer-events-none absolute inset-0"
+          style={{
+            background: 'hsl(var(--card) / 0.6)',
+            backdropFilter: 'blur(12px)',
+            borderRadius: scaled(14),
+          }}
+        />
+
         {/* Top highlight (glass refraction) */}
         <div
           className="pointer-events-none absolute left-0 right-0 top-0"
@@ -310,7 +399,7 @@ export function LiquidGlassLayout({
         {/* Stats mini-cards */}
         <div
           className="relative shrink-0 grid grid-cols-2"
-          style={{ gap: scaled(6), padding: `${scaled(12)} ${scaled(12)} ${scaled(6)}` }}
+          style={{ gap: scaled(6), padding: `${scaled(12)} ${scaled(12)} 0` }}
         >
           <div
             style={{
@@ -356,26 +445,40 @@ export function LiquidGlassLayout({
           </div>
         </div>
 
-        {/* Separator */}
-        <div className="shrink-0" style={{ margin: `0 ${scaled(12)}`, borderTop: '1px solid hsl(var(--border) / 0.06)' }} />
+        {/* Entries + footer overlay */}
+        <div className="relative flex min-h-0 flex-1 flex-col">
+          <EntriesList currentEntry={currentEntry} entries={entries} onResume={onResume} onUpdateEntry={onUpdateEntry} projects={projects} />
 
-        {/* Entries */}
-        <EntriesList currentEntry={currentEntry} entries={entries} onResume={onResume} onUpdateEntry={onUpdateEntry} projects={projects} />
-
-        {/* Footer separator + link */}
-        <div className="shrink-0" style={{ margin: `0 ${scaled(12)}`, borderTop: '1px solid hsl(var(--border) / 0.06)' }} />
-        <div
-          className="flex shrink-0 items-center justify-center"
-          style={{ padding: `${scaled(8)} ${scaled(14)}` }}
-        >
-          <button
-            className="flex cursor-pointer items-center text-muted-foreground transition-colors hover:text-primary"
-            style={{ fontSize: scaled(11), gap: scaled(4) }}
-            onClick={() => window.electronAPI?.openExternal(webAppUrl)}
+          {/* Footer overlay — frosted backdrop + button on top */}
+          <div
+            className="pointer-events-none absolute bottom-0 left-0 right-0"
+            style={{ zIndex: 50 }}
           >
-            Open Ternity
-            <ExternalLink style={{ width: scaled(10), height: scaled(10) }} />
-          </button>
+            {/* Frosted layer with gradual mask */}
+            <div
+              className="absolute inset-0"
+              style={{
+                background: 'linear-gradient(to top, hsl(var(--card) / 0.95) 0%, hsl(var(--card) / 0.05) 100%)',
+                backdropFilter: 'blur(12px)',
+                maskImage: 'linear-gradient(to top, black 30%, transparent 100%)',
+                WebkitMaskImage: 'linear-gradient(to top, black 30%, transparent 100%)',
+              }}
+            />
+            {/* Button — unaffected by mask */}
+            <div
+              className="relative flex items-center justify-center"
+              style={{ padding: `${scaled(12)} ${scaled(14)} ${scaled(8)}` }}
+            >
+              <button
+                className="pointer-events-auto flex cursor-pointer items-center text-muted-foreground transition-colors hover:text-primary"
+                style={{ fontSize: scaled(11), gap: scaled(4) }}
+                onClick={() => window.electronAPI?.openExternal(webAppUrl)}
+              >
+                Open Ternity
+                <ExternalLink style={{ width: scaled(10), height: scaled(10) }} />
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>

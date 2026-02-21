@@ -29,6 +29,17 @@
       "Bash(lsof:*)",
       "Bash(pkill:*)",
       "Bash(kill:*)",
+      "Bash(pnpm:*)",
+      "Bash(screencapture:*)",
+      "Bash(swift:*)",
+      "Bash(cliclick:*)",
+      "Bash(osascript:*)",
+      "Bash(pgrep:*)",
+      "Bash(ps:*)",
+      "Bash(brew:*)",
+      "Bash(bash:*)",
+      "Bash(sleep:*)",
+      "Bash(chmod:*)",
 
       "Bash(./scripts/secrets.sh:*)",
 

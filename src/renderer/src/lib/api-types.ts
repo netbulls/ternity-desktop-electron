@@ -11,6 +11,7 @@ export interface Entry {
   startedAt: string;
   stoppedAt: string | null;
   durationSeconds: number | null;
+  createdAt: string;
   userId: string;
 }
 

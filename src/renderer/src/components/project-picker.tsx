@@ -124,7 +124,7 @@ export function ProjectPicker({
   const picker = (
     <motion.div
       ref={ref}
-      className={`overflow-hidden rounded-lg border border-border bg-background ${
+      className={`relative overflow-hidden rounded-lg border border-border/30 ${
         anchorRect
           ? ''
           : `absolute ${direction === 'up' ? 'bottom-full' : 'top-full'} ${align === 'right' ? 'right-0' : 'left-0'}`
@@ -133,15 +133,25 @@ export function ProjectPicker({
         zIndex: 9999,
         width: scaled(260),
         ...(fixedStyle ?? (direction === 'up' ? { marginBottom: scaled(4) } : { marginTop: scaled(4) })),
-        boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+        background: 'linear-gradient(to bottom, hsl(var(--card) / 0.95) 0%, hsl(var(--card) / 0.88) 100%)',
+        backdropFilter: 'blur(24px)',
+        boxShadow: '0 8px 32px rgba(0,0,0,0.5), 0 0 1px rgba(255,255,255,0.05) inset',
       }}
       initial={{ opacity: 0, y: direction === 'up' ? 4 : -4, scale: 0.97 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: direction === 'up' ? 4 : -4, scale: 0.97 }}
       transition={{ duration: 0.15 }}
     >
+      {/* Inner highlight */}
+      <div
+        className="pointer-events-none absolute left-0 right-0 top-0"
+        style={{
+          height: '40%',
+          background: 'linear-gradient(180deg, hsl(var(--foreground) / 0.03) 0%, transparent 100%)',
+        }}
+      />
       {/* Search */}
-      <div className="border-b border-border" style={{ padding: scaled(8) }}>
+      <div className="border-b border-border/30" style={{ padding: scaled(8) }}>
         <div className="relative">
           <Search
             className="absolute text-muted-foreground"
@@ -155,7 +165,7 @@ export function ProjectPicker({
           />
           <motion.input
             ref={searchRef}
-            className="w-full rounded-md border border-border bg-muted/40 text-foreground outline-none placeholder:text-muted-foreground"
+            className="w-full rounded-md border border-border/30 bg-muted/40 text-foreground outline-none placeholder:text-muted-foreground"
             style={{
               height: scaled(28),
               paddingLeft: scaled(26),
@@ -205,8 +215,8 @@ export function ProjectPicker({
                     key={`${group.client}-${project.id}`}
                     className={`flex w-full items-center text-left transition-colors ${
                       isSelected
-                        ? 'bg-primary/8 text-foreground'
-                        : 'text-foreground/80 hover:bg-muted/50 hover:text-foreground'
+                        ? 'bg-primary/8 text-foreground hover:bg-muted'
+                        : 'text-foreground/80 hover:bg-primary/15 hover:text-foreground'
                     }`}
                     style={{ gap: scaled(8), padding: `${scaled(6)} ${scaled(12)}` }}
                     initial={{ opacity: 0, x: -8 }}
@@ -265,7 +275,7 @@ export function ProjectPicker({
       </div>
 
       {/* No project option */}
-      <div className="border-t border-border" style={{ padding: scaled(4) }}>
+      <div className="border-t border-border/30" style={{ padding: scaled(4) }}>
         <motion.button
           className="flex w-full items-center text-left text-muted-foreground hover:bg-muted/50 hover:text-foreground"
           style={{ gap: scaled(8), padding: `${scaled(6)} ${scaled(12)}`, fontSize: scaled(11) }}

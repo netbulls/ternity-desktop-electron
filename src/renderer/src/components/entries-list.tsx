@@ -161,6 +161,15 @@ export function EntriesList({ currentEntry, entries, onResume, onUpdateEntry, pr
       }
     }
 
+    // Sort entries within each day by createdAt (newest first)
+    for (const day of copy) {
+      day.entries.sort((a, b) => {
+        const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return bTime - aTime;
+      });
+    }
+
     return copy;
   })();
 
@@ -210,21 +219,37 @@ export function EntriesList({ currentEntry, entries, onResume, onUpdateEntry, pr
 function DayHeader({ label, duration }: { label: string; duration: string }) {
   return (
     <div
-      className="sticky top-0 z-10 flex items-center justify-between backdrop-blur-sm"
-      style={{ padding: `${scaled(6)} ${scaled(14)} ${scaled(3)}`, background: 'hsl(var(--card) / 0.85)' }}
+      className="sticky top-0"
+      style={{ zIndex: 50 }}
     >
-      <span
-        className="font-brand uppercase tracking-widest text-muted-foreground/60"
-        style={{ fontSize: scaled(8), letterSpacing: '1.5px' }}
+      {/* Frosted layer with gradual mask */}
+      <div
+        className="absolute inset-0"
+        style={{
+          background: 'linear-gradient(to bottom, hsl(var(--card) / 0.95) 0%, hsl(var(--card) / 0.05) 100%)',
+          backdropFilter: 'blur(12px)',
+          maskImage: 'linear-gradient(to bottom, black 30%, transparent 100%)',
+          WebkitMaskImage: 'linear-gradient(to bottom, black 30%, transparent 100%)',
+        }}
+      />
+      {/* Content — unaffected by mask */}
+      <div
+        className="relative flex items-center justify-between"
+        style={{ padding: `${scaled(8)} ${scaled(14)} ${scaled(12)}` }}
       >
-        {label}
-      </span>
-      <span
-        className="font-brand tabular-nums text-muted-foreground/40"
-        style={{ fontSize: scaled(9) }}
-      >
-        {duration}
-      </span>
+        <span
+          className="font-brand uppercase tracking-widest text-muted-foreground/60"
+          style={{ fontSize: scaled(8), letterSpacing: '1.5px' }}
+        >
+          {label}
+        </span>
+        <span
+          className="font-brand tabular-nums text-muted-foreground/40"
+          style={{ fontSize: scaled(9) }}
+        >
+          {duration}
+        </span>
+      </div>
     </div>
   );
 }

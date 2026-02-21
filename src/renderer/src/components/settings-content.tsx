@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Keyboard, X, LogOut, ChevronDown, FolderKanban } from 'lucide-react';
-import { AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { scaled } from '@/lib/scaled';
 import { THEMES, type ThemeId } from '@/lib/themes';
 import { SCALES, useScale } from '@/providers/scale-provider';
@@ -26,6 +26,9 @@ export function SettingsContent({
   const [defaultProjectId, setDefaultProjectId] = useState<string | null>(null);
   const [projects, setProjects] = useState<ProjectOption[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerAnchor, setPickerAnchor] = useState<{ top: number; bottom: number; left: number; right: number } | null>(null);
+  const [pillPop, setPillPop] = useState(false);
+  const projectTriggerRef = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
     window.electronAPI?.getLoginItem().then(setStartAtLogin);
@@ -56,6 +59,9 @@ export function SettingsContent({
     window.dispatchEvent(
       new CustomEvent('default-project-changed', { detail: project?.id ?? null }),
     );
+    setPickerOpen(false);
+    setPillPop(true);
+    setTimeout(() => setPillPop(false), 500);
   };
 
   const selectedDefaultProject = projects.find((p) => p.id === defaultProjectId) ?? null;
@@ -213,10 +219,38 @@ export function SettingsContent({
             style={{ padding: `${scaled(7)} ${scaled(10)}` }}
           >
             <span className="text-muted-foreground">Default Project</span>
-            <span
-              className="flex cursor-pointer items-center text-muted-foreground transition-colors hover:text-foreground"
-              style={{ gap: scaled(4), fontSize: scaled(10) }}
-              onClick={() => setPickerOpen((o) => !o)}
+            <motion.span
+              ref={projectTriggerRef}
+              className={`flex cursor-pointer items-center text-muted-foreground transition-colors hover:text-foreground ${pillPop ? 'pill-pop' : ''}`}
+              style={{
+                gap: scaled(4),
+                fontSize: scaled(10),
+                border: '1px solid',
+                borderRadius: scaled(10),
+                padding: `${scaled(1)} ${scaled(6)}`,
+                margin: `${scaled(-1)} ${scaled(-6)}`,
+              }}
+              animate={pickerOpen
+                ? {
+                    borderColor: [
+                      'hsl(var(--primary) / 0.3)',
+                      'hsl(var(--primary) / 0.6)',
+                      'hsl(var(--primary) / 0.3)',
+                    ],
+                  }
+                : { borderColor: 'transparent' }
+              }
+              transition={pickerOpen
+                ? { duration: 2, repeat: Infinity, ease: 'easeInOut' as const }
+                : { duration: 0.2 }
+              }
+              onClick={() => {
+                if (projectTriggerRef.current) {
+                  const rect = projectTriggerRef.current.getBoundingClientRect();
+                  setPickerAnchor({ top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right });
+                }
+                setPickerOpen((o) => !o);
+              }}
             >
               {selectedDefaultProject ? (
                 <>
@@ -247,7 +281,7 @@ export function SettingsContent({
                   transform: pickerOpen ? 'rotate(180deg)' : 'rotate(0)',
                 }}
               />
-            </span>
+            </motion.span>
             <AnimatePresence>
               {pickerOpen && (
                 <ProjectPicker
@@ -256,6 +290,7 @@ export function SettingsContent({
                   onClose={() => setPickerOpen(false)}
                   projects={projects}
                   align="right"
+                  anchorRect={pickerAnchor ?? undefined}
                 />
               )}
             </AnimatePresence>

@@ -4,6 +4,12 @@
 
 ### Added
 - Windows installer code signing — shows "Open Source Developer, Przemyslaw Rudzki" instead of "Unknown Publisher"
+- Frosted glass day headers and footer overlay with gradual fade effect
+- Breathing border animation on project pill when picker is open
+- Pill-pop animation on project selection (green flash)
+- LiquidEdge — drifting teal blobs when timer is running
+- Glassy frosted project picker with blur and inner highlight
+- Entries sorted by creation time (newest first within each day)
 
 ## [0.4.0] - 2026-02-20
 
