@@ -13,6 +13,12 @@
 #
 # Total: 10 artifacts per release.
 #
+# Build groups run in parallel:
+#   Group A (local):  macOS arm64/x64 DMGs + Linux deb/AppImage
+#   Group B (SSH):    Linux RPM arm64 on ubuntu-arm64
+#   Group C (SSH):    Linux RPM x64 on ubuntu-x64
+#   Group D (SSH):    Windows arm64+x64 on windows-arm64
+#
 # Requires env vars from .env.signing:
 #   APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID (macOS notarization)
 #   CERTUM_CERT_SHA1 (Windows code signing — SimplySign must be authenticated)
@@ -77,11 +83,10 @@ else
   echo ""
 fi
 
-ARTIFACTS=()
-
 # --- Clean previous build artifacts ---
 echo "Cleaning dist/..."
 rm -rf dist/
+mkdir -p dist/
 echo ""
 
 # --- VM config ---
@@ -92,16 +97,112 @@ LINUX_ARM64_HOST="ubuntu-arm64"
 LINUX_X64_HOST="ubuntu-x64"
 LINUX_PROJECT_DIR="ternity-desktop"  # relative to home dir (works with both ssh and scp)
 
-# --- macOS arm64 ---
-echo "==> [1/8] Building macOS arm64..."
+# --- Log directory for parallel build output ---
+BUILD_LOG_DIR=$(mktemp -d)
+trap "rm -rf $BUILD_LOG_DIR" EXIT
+
+# ============================================================
+# PARALLEL BUILD GROUPS
+# ============================================================
+# Group B/C/D (SSH) start in background immediately.
+# Group A (local) runs in foreground.
+# All groups sync before distribution.
+# ============================================================
+
+echo "==> Starting parallel builds..."
+echo "    Group A: macOS + Linux deb/AppImage (local, foreground)"
+echo "    Group B: Linux RPM arm64 (SSH to ${LINUX_ARM64_HOST}, background)"
+echo "    Group C: Linux RPM x64 (SSH to ${LINUX_X64_HOST}, background)"
+echo "    Group D: Windows arm64+x64 (SSH to ${WIN_HOST}, background)"
+echo ""
+
+# --- Group B: Linux RPM arm64 (background) ---
+(
+  set -euo pipefail
+  NVM_PREFIX="source ~/.nvm/nvm.sh 2>/dev/null;"
+  echo "[B] Syncing and building RPM (arm64) on ${LINUX_ARM64_HOST}..."
+  ssh "$LINUX_ARM64_HOST" "${NVM_PREFIX} cd ${LINUX_PROJECT_DIR} && git checkout -- . && git pull origin main --ff-only && rm -rf dist/ && pnpm install --frozen-lockfile"
+  scp package.json "${LINUX_ARM64_HOST}:ternity-desktop/package.json"
+  scp electron-builder.yml "${LINUX_ARM64_HOST}:ternity-desktop/electron-builder.yml"
+  ssh "$LINUX_ARM64_HOST" "${NVM_PREFIX} cd ${LINUX_PROJECT_DIR} && pnpm exec electron-vite build && USE_SYSTEM_FPM=true pnpm electron-builder --linux rpm --arm64 --config electron-builder.yml"
+  # Copy RPM artifact back
+  for file in $(ssh "$LINUX_ARM64_HOST" "${NVM_PREFIX} ls ${LINUX_PROJECT_DIR}/dist/Ternity-Electron-*.rpm 2>/dev/null"); do
+    BASENAME=$(basename "$file")
+    scp "${LINUX_ARM64_HOST}:${LINUX_PROJECT_DIR}/dist/${BASENAME}" "dist/${BASENAME}"
+    # Normalize arch name
+    normalized="dist/${BASENAME}"
+    normalized="${normalized//-aarch64./-arm64.}"
+    if [ "dist/${BASENAME}" != "$normalized" ]; then
+      mv "dist/${BASENAME}" "$normalized"
+      echo "[B] Renamed: ${BASENAME} → $(basename "$normalized")"
+    fi
+  done
+  echo "[B] Done — RPM arm64 complete"
+) > "$BUILD_LOG_DIR/group-b.log" 2>&1 &
+PID_B=$!
+
+# --- Group C: Linux RPM x64 (background) ---
+(
+  set -euo pipefail
+  NVM_PREFIX="source ~/.nvm/nvm.sh 2>/dev/null;"
+  echo "[C] Syncing and building RPM (x64) on ${LINUX_X64_HOST}..."
+  ssh "$LINUX_X64_HOST" "${NVM_PREFIX} cd ${LINUX_PROJECT_DIR} && git checkout -- . && git pull origin main --ff-only && rm -rf dist/ && pnpm install --frozen-lockfile"
+  scp package.json "${LINUX_X64_HOST}:ternity-desktop/package.json"
+  scp electron-builder.yml "${LINUX_X64_HOST}:ternity-desktop/electron-builder.yml"
+  ssh "$LINUX_X64_HOST" "${NVM_PREFIX} cd ${LINUX_PROJECT_DIR} && pnpm exec electron-vite build && USE_SYSTEM_FPM=true pnpm electron-builder --linux rpm --x64 --config electron-builder.yml"
+  # Copy RPM artifact back
+  for file in $(ssh "$LINUX_X64_HOST" "${NVM_PREFIX} ls ${LINUX_PROJECT_DIR}/dist/Ternity-Electron-*.rpm 2>/dev/null"); do
+    BASENAME=$(basename "$file")
+    scp "${LINUX_X64_HOST}:${LINUX_PROJECT_DIR}/dist/${BASENAME}" "dist/${BASENAME}"
+    # Normalize arch name
+    normalized="dist/${BASENAME}"
+    normalized="${normalized//-x86_64./-x64.}"
+    if [ "dist/${BASENAME}" != "$normalized" ]; then
+      mv "dist/${BASENAME}" "$normalized"
+      echo "[C] Renamed: ${BASENAME} → $(basename "$normalized")"
+    fi
+  done
+  echo "[C] Done — RPM x64 complete"
+) > "$BUILD_LOG_DIR/group-c.log" 2>&1 &
+PID_C=$!
+
+# --- Group D: Windows (background) ---
+(
+  set -euo pipefail
+  echo "[D] Syncing project to Windows VM..."
+  ssh "$WIN_HOST" "set \"PATH=${WIN_PATH};%PATH%\" && cd ${WIN_PROJECT_DIR} && git checkout -- . && git pull --ff-only"
+  scp electron-builder.yml "${WIN_HOST}:ternity-desktop/electron-builder.yml"
+  scp package.json "${WIN_HOST}:ternity-desktop/package.json"
+  scp scripts/win-sign.cjs "${WIN_HOST}:ternity-desktop/scripts/win-sign.cjs"
+
+  SIGN_ENV=""
+  if [ -n "${CERTUM_CERT_SHA1:-}" ]; then
+    echo "[D] Windows code signing: ENABLED (thumbprint: ${CERTUM_CERT_SHA1:0:8}...)"
+    SIGN_ENV="set \"CERTUM_CERT_SHA1=${CERTUM_CERT_SHA1}\" && "
+  else
+    echo "[D] Windows code signing: DISABLED (no CERTUM_CERT_SHA1)"
+  fi
+
+  echo "[D] Building Windows (arm64 + x64)..."
+  ssh "$WIN_HOST" "set \"PATH=${WIN_PATH};%PATH%\" && ${SIGN_ENV}cd ${WIN_PROJECT_DIR} && pnpm install --frozen-lockfile && pnpm exec electron-vite build && pnpm electron-builder --win --arm64 --x64 --config electron-builder.yml"
+
+  echo "[D] Copying Windows artifacts..."
+  for arch in arm64 x64; do
+    WIN_EXE="Ternity-Electron-${VERSION}-${arch}.exe"
+    scp "${WIN_HOST}:ternity-desktop/dist/${WIN_EXE}" "dist/${WIN_EXE}"
+  done
+  echo "[D] Done — Windows complete"
+) > "$BUILD_LOG_DIR/group-d.log" 2>&1 &
+PID_D=$!
+
+# --- Group A: macOS + Linux deb/AppImage (foreground) ---
+echo "[A] Building macOS arm64..."
 pnpm electron-builder --config electron-builder.yml --mac --arm64
 
-echo "==> [2/8] Building DMG (arm64, sign + notarize)..."
+echo "[A] Building DMG (arm64, sign + notarize)..."
 pnpm tsx scripts/build-dmg.ts dist/mac-arm64/Ternity.app
-ARTIFACTS+=("dist/Ternity-Electron-${VERSION}-arm64.dmg")
 
-# --- macOS x64 ---
-echo "==> [3/8] Building macOS x64..."
+echo "[A] Building macOS x64..."
 pnpm electron-builder --config electron-builder.yml --mac --x64
 
 # electron-builder outputs x64 to dist/mac/ on arm64 hosts
@@ -114,16 +215,13 @@ if [ ! -d "$MAC_X64_APP" ]; then
   exit 1
 fi
 
-echo "==> [4/8] Building DMG (x64, sign + notarize)..."
+echo "[A] Building DMG (x64, sign + notarize)..."
 pnpm tsx scripts/build-dmg.ts "$MAC_X64_APP"
-ARTIFACTS+=("dist/Ternity-Electron-${VERSION}-x64.dmg")
 
-# --- Linux deb + AppImage (cross-compiled from macOS) ---
-echo "==> [5/8] Building Linux (AppImage + deb, arm64 + x64)..."
+echo "[A] Building Linux (AppImage + deb, arm64 + x64)..."
 pnpm electron-builder --config electron-builder.yml --linux deb AppImage --arm64 --x64
 
-# electron-builder uses platform-native arch names (x86_64 for AppImage, amd64 for deb).
-# Normalize to arm64/x64 for consistent artifact naming.
+# Normalize arch names for Linux deb/AppImage
 for file in dist/Ternity-Electron-${VERSION}-*.AppImage dist/Ternity-Electron-${VERSION}-*.deb; do
   [ -f "$file" ] || continue
   normalized="$file"
@@ -131,70 +229,72 @@ for file in dist/Ternity-Electron-${VERSION}-*.AppImage dist/Ternity-Electron-${
   normalized="${normalized//-amd64./-x64.}"
   if [ "$normalized" != "$file" ]; then
     mv "$file" "$normalized"
-    echo "  Renamed: $(basename "$file") → $(basename "$normalized")"
+    echo "[A] Renamed: $(basename "$file") → $(basename "$normalized")"
   fi
-  ARTIFACTS+=("$normalized")
 done
 
-# --- Linux RPMs (built on Linux VMs via SSH — rpmbuild not available on macOS) ---
-echo "==> [6/8] Building Linux RPMs (arm64 via SSH to ${LINUX_ARM64_HOST}, x64 via SSH to ${LINUX_X64_HOST})..."
+echo "[A] Done — macOS + Linux deb/AppImage complete"
+echo ""
 
-for VM_ENTRY in "arm64:$LINUX_ARM64_HOST" "x64:$LINUX_X64_HOST"; do
-  VM_ARCH="${VM_ENTRY%%:*}"
-  VM_HOST="${VM_ENTRY#*:}"
-  # nvm needs sourcing for non-interactive SSH on some VMs
-  NVM_PREFIX="source ~/.nvm/nvm.sh 2>/dev/null;"
-  echo "  Building RPM (${VM_ARCH}) on ${VM_HOST}..."
-  ssh "$VM_HOST" "${NVM_PREFIX} cd ${LINUX_PROJECT_DIR} && git checkout -- . && git pull origin main --ff-only && rm -rf dist/ && pnpm install --frozen-lockfile"
-  # SCP version-injected package.json + electron-builder config
-  scp package.json "${VM_HOST}:ternity-desktop/package.json"
-  scp electron-builder.yml "${VM_HOST}:ternity-desktop/electron-builder.yml"
-  ssh "$VM_HOST" "${NVM_PREFIX} cd ${LINUX_PROJECT_DIR} && pnpm exec electron-vite build && USE_SYSTEM_FPM=true pnpm electron-builder --linux rpm --${VM_ARCH} --config electron-builder.yml"
-  # Copy RPM artifacts back
-  for file in $(ssh "$VM_HOST" "${NVM_PREFIX} ls ${LINUX_PROJECT_DIR}/dist/Ternity-Electron-*.rpm 2>/dev/null"); do
-    BASENAME=$(basename "$file")
-    scp "${VM_HOST}:${LINUX_PROJECT_DIR}/dist/${BASENAME}" "dist/${BASENAME}"
-    if [ -f "dist/${BASENAME}" ]; then
-      # Normalize arch names
-      normalized="dist/${BASENAME}"
-      normalized="${normalized//-x86_64./-x64.}"
-      normalized="${normalized//-aarch64./-arm64.}"
-      if [ "dist/${BASENAME}" != "$normalized" ]; then
-        mv "dist/${BASENAME}" "$normalized"
-        echo "  Renamed: ${BASENAME} → $(basename "$normalized")"
-      fi
-      ARTIFACTS+=("$normalized")
-    fi
-  done
+# ============================================================
+# WAIT FOR BACKGROUND GROUPS
+# ============================================================
+
+echo "==> Waiting for background builds..."
+FAILED=false
+
+for GROUP_INFO in "B:$PID_B:group-b:RPM arm64" "C:$PID_C:group-c:RPM x64" "D:$PID_D:group-d:Windows"; do
+  GROUP_LABEL="${GROUP_INFO%%:*}"
+  REST="${GROUP_INFO#*:}"
+  GROUP_PID="${REST%%:*}"
+  REST="${REST#*:}"
+  GROUP_LOG="${REST%%:*}"
+  GROUP_DESC="${REST#*:}"
+
+  if wait "$GROUP_PID"; then
+    echo "  [${GROUP_LABEL}] ${GROUP_DESC} — OK"
+  else
+    echo "  [${GROUP_LABEL}] ${GROUP_DESC} — FAILED"
+    echo "  --- Log (${GROUP_LOG}) ---"
+    cat "$BUILD_LOG_DIR/${GROUP_LOG}.log"
+    echo "  --- End log ---"
+    FAILED=true
+  fi
 done
 
-# --- Windows (built on Windows VM via SSH) ---
-echo "==> [7/8] Building Windows (arm64 + x64 via SSH to ${WIN_HOST})..."
-echo "  Syncing project to Windows VM..."
-# Reset build-modified files (package.json gets overwritten by scp anyway), then pull latest code
-ssh "$WIN_HOST" "set \"PATH=${WIN_PATH};%PATH%\" && cd ${WIN_PROJECT_DIR} && git checkout -- . && git pull --ff-only"
-scp electron-builder.yml "${WIN_HOST}:ternity-desktop/electron-builder.yml"
-scp package.json "${WIN_HOST}:ternity-desktop/package.json"
-scp scripts/win-sign.cjs "${WIN_HOST}:ternity-desktop/scripts/win-sign.cjs"
+# Show background logs for reference
+echo ""
+echo "==> Background build logs:"
+for log in "$BUILD_LOG_DIR"/group-*.log; do
+  [ -f "$log" ] || continue
+  LABEL=$(basename "$log" .log | tr '[:lower:]' '[:upper:]' | sed 's/GROUP-//')
+  echo "  --- [${LABEL}] ---"
+  tail -3 "$log"
+  echo ""
+done
 
-SIGN_ENV=""
-if [ -n "${CERTUM_CERT_SHA1:-}" ]; then
-  echo "  Windows code signing: ENABLED (thumbprint: ${CERTUM_CERT_SHA1:0:8}...)"
-  SIGN_ENV="set \"CERTUM_CERT_SHA1=${CERTUM_CERT_SHA1}\" && "
-else
-  echo "  Windows code signing: DISABLED (no CERTUM_CERT_SHA1)"
+if [ "$FAILED" = true ]; then
+  echo "Error: one or more background builds failed. Aborting." >&2
+  exit 1
 fi
 
-echo "==> [8/8] Running Windows build..."
-# Skip version-inject (package.json already has correct version from scp)
-# Run electron-vite build directly, then electron-builder
-ssh "$WIN_HOST" "set \"PATH=${WIN_PATH};%PATH%\" && ${SIGN_ENV}cd ${WIN_PROJECT_DIR} && pnpm install --frozen-lockfile && pnpm exec electron-vite build && pnpm electron-builder --win --arm64 --x64 --config electron-builder.yml"
+# ============================================================
+# COLLECT ARTIFACTS
+# ============================================================
 
-echo "  Copying Windows artifacts..."
-for arch in arm64 x64; do
-  WIN_EXE="Ternity-Electron-${VERSION}-${arch}.exe"
-  scp "${WIN_HOST}:ternity-desktop/dist/${WIN_EXE}" "dist/${WIN_EXE}"
-  [ -f "dist/${WIN_EXE}" ] && ARTIFACTS+=("dist/${WIN_EXE}")
+ARTIFACTS=()
+for file in \
+  "dist/Ternity-Electron-${VERSION}-arm64.dmg" \
+  "dist/Ternity-Electron-${VERSION}-x64.dmg" \
+  "dist/Ternity-Electron-${VERSION}-arm64.AppImage" \
+  "dist/Ternity-Electron-${VERSION}-x64.AppImage" \
+  "dist/Ternity-Electron-${VERSION}-arm64.deb" \
+  "dist/Ternity-Electron-${VERSION}-x64.deb" \
+  "dist/Ternity-Electron-${VERSION}-arm64.rpm" \
+  "dist/Ternity-Electron-${VERSION}-x64.rpm" \
+  "dist/Ternity-Electron-${VERSION}-arm64.exe" \
+  "dist/Ternity-Electron-${VERSION}-x64.exe"; do
+  ARTIFACTS+=("$file")
 done
 
 # --- Verify all artifacts exist ---
