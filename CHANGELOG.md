@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Added
+- Header branding — "Electron" suffix after TERNITY, environment warning strip for local/dev
 - Windows installer code signing — shows "Open Source Developer, Przemyslaw Rudzki" instead of "Unknown Publisher"
 - Frosted glass day headers and footer overlay with gradual fade effect
 - Breathing border animation on project pill when picker is open
