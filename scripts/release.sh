@@ -122,8 +122,8 @@ done
 # --- Windows (built on Windows VM via SSH) ---
 echo "==> [6/7] Building Windows (arm64 + x64 via SSH to ${WIN_HOST})..."
 echo "  Syncing project to Windows VM..."
-# Pull latest code, sync config files with version already injected
-ssh "$WIN_HOST" "set \"PATH=${WIN_PATH};%PATH%\" && cd ${WIN_PROJECT_DIR} && git pull --ff-only" || true
+# Reset build-modified files (package.json gets overwritten by scp anyway), then pull latest code
+ssh "$WIN_HOST" "set \"PATH=${WIN_PATH};%PATH%\" && cd ${WIN_PROJECT_DIR} && git checkout -- . && git pull --ff-only"
 scp electron-builder.yml "${WIN_HOST}:ternity-desktop/electron-builder.yml"
 scp package.json "${WIN_HOST}:ternity-desktop/package.json"
 scp scripts/win-sign.cjs "${WIN_HOST}:ternity-desktop/scripts/win-sign.cjs"
