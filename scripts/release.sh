@@ -7,7 +7,8 @@
 #
 # Builds:
 #   macOS:    arm64 + x64 DMGs (signed + notarized)
-#   Linux:    arm64 + x64 AppImages + debs + rpms
+#   Linux:    arm64 + x64 AppImages + debs (cross-compiled from macOS)
+#   Linux:    arm64 + x64 RPMs (built on Linux VMs via SSH — rpmbuild not available on macOS)
 #   Windows:  arm64 + x64 NSIS installers (built on Windows VM via SSH)
 #
 # Total: 10 artifacts per release.
@@ -78,21 +79,29 @@ fi
 
 ARTIFACTS=()
 
-# --- Windows VM config ---
+# --- Clean previous build artifacts ---
+echo "Cleaning dist/..."
+rm -rf dist/
+echo ""
+
+# --- VM config ---
 WIN_HOST="windows-arm64"
 WIN_PROJECT_DIR="C:\\Users\\erace\\ternity-desktop"
 WIN_PATH="C:\\Program Files\\nodejs;C:\\Users\\erace\\AppData\\Roaming\\npm;C:\\Program Files\\Git\\bin;C:\\Program Files (x86)\\Windows Kits\\10\\bin\\10.0.18362.0\\x86"
+LINUX_ARM64_HOST="ubuntu-arm64"
+LINUX_X64_HOST="ubuntu-x64"
+LINUX_PROJECT_DIR="\$HOME/ternity-desktop"
 
 # --- macOS arm64 ---
-echo "==> [1/7] Building macOS arm64..."
+echo "==> [1/8] Building macOS arm64..."
 pnpm electron-builder --config electron-builder.yml --mac --arm64
 
-echo "==> [2/7] Building DMG (arm64, sign + notarize)..."
+echo "==> [2/8] Building DMG (arm64, sign + notarize)..."
 pnpm tsx scripts/build-dmg.ts dist/mac-arm64/Ternity.app
 ARTIFACTS+=("dist/Ternity-Electron-${VERSION}-arm64.dmg")
 
 # --- macOS x64 ---
-echo "==> [3/7] Building macOS x64..."
+echo "==> [3/8] Building macOS x64..."
 pnpm electron-builder --config electron-builder.yml --mac --x64
 
 # electron-builder outputs x64 to dist/mac/ on arm64 hosts
@@ -105,22 +114,60 @@ if [ ! -d "$MAC_X64_APP" ]; then
   exit 1
 fi
 
-echo "==> [4/7] Building DMG (x64, sign + notarize)..."
+echo "==> [4/8] Building DMG (x64, sign + notarize)..."
 pnpm tsx scripts/build-dmg.ts "$MAC_X64_APP"
 ARTIFACTS+=("dist/Ternity-Electron-${VERSION}-x64.dmg")
 
-# --- Linux (all archs, all targets) ---
-echo "==> [5/7] Building Linux (AppImage + deb + rpm, arm64 + x64)..."
-pnpm electron-builder --config electron-builder.yml --linux deb rpm AppImage --arm64 --x64
+# --- Linux deb + AppImage (cross-compiled from macOS) ---
+echo "==> [5/8] Building Linux (AppImage + deb, arm64 + x64)..."
+pnpm electron-builder --config electron-builder.yml --linux deb AppImage --arm64 --x64
 
-# electron-builder uses platform-native arch names (x86_64 for AppImage, amd64 for deb)
-# so we glob for actual files instead of assuming names
-for file in dist/Ternity-Electron-${VERSION}-*.AppImage dist/Ternity-Electron-${VERSION}-*.deb dist/Ternity-Electron-${VERSION}-*.rpm; do
-  [ -f "$file" ] && ARTIFACTS+=("$file")
+# electron-builder uses platform-native arch names (x86_64 for AppImage, amd64 for deb).
+# Normalize to arm64/x64 for consistent artifact naming.
+for file in dist/Ternity-Electron-${VERSION}-*.AppImage dist/Ternity-Electron-${VERSION}-*.deb; do
+  [ -f "$file" ] || continue
+  normalized="$file"
+  normalized="${normalized//-x86_64./-x64.}"
+  normalized="${normalized//-amd64./-x64.}"
+  if [ "$normalized" != "$file" ]; then
+    mv "$file" "$normalized"
+    echo "  Renamed: $(basename "$file") → $(basename "$normalized")"
+  fi
+  ARTIFACTS+=("$normalized")
+done
+
+# --- Linux RPMs (built on Linux VMs via SSH — rpmbuild not available on macOS) ---
+echo "==> [6/8] Building Linux RPMs (arm64 via SSH to ${LINUX_ARM64_HOST}, x64 via SSH to ${LINUX_X64_HOST})..."
+
+for VM_HOST in "$LINUX_ARM64_HOST" "$LINUX_X64_HOST"; do
+  # nvm needs sourcing for non-interactive SSH on some VMs
+  NVM_PREFIX="source ~/.nvm/nvm.sh 2>/dev/null;"
+  echo "  Building RPM on ${VM_HOST}..."
+  ssh "$VM_HOST" "${NVM_PREFIX} cd ${LINUX_PROJECT_DIR} && git checkout -- . && git pull origin main --ff-only && pnpm install --frozen-lockfile"
+  # SCP version-injected package.json + electron-builder config
+  scp package.json "${VM_HOST}:ternity-desktop/package.json"
+  scp electron-builder.yml "${VM_HOST}:ternity-desktop/electron-builder.yml"
+  ssh "$VM_HOST" "${NVM_PREFIX} cd ${LINUX_PROJECT_DIR} && pnpm exec electron-vite build && pnpm electron-builder --linux rpm --config electron-builder.yml"
+  # Copy RPM artifacts back
+  for file in $(ssh "$VM_HOST" "${NVM_PREFIX} ls ${LINUX_PROJECT_DIR}/dist/Ternity-Electron-*.rpm 2>/dev/null"); do
+    BASENAME=$(basename "$file")
+    scp "${VM_HOST}:${LINUX_PROJECT_DIR}/dist/${BASENAME}" "dist/${BASENAME}"
+    if [ -f "dist/${BASENAME}" ]; then
+      # Normalize arch names
+      normalized="dist/${BASENAME}"
+      normalized="${normalized//-x86_64./-x64.}"
+      normalized="${normalized//-aarch64./-arm64.}"
+      if [ "dist/${BASENAME}" != "$normalized" ]; then
+        mv "dist/${BASENAME}" "$normalized"
+        echo "  Renamed: ${BASENAME} → $(basename "$normalized")"
+      fi
+      ARTIFACTS+=("$normalized")
+    fi
+  done
 done
 
 # --- Windows (built on Windows VM via SSH) ---
-echo "==> [6/7] Building Windows (arm64 + x64 via SSH to ${WIN_HOST})..."
+echo "==> [7/8] Building Windows (arm64 + x64 via SSH to ${WIN_HOST})..."
 echo "  Syncing project to Windows VM..."
 # Reset build-modified files (package.json gets overwritten by scp anyway), then pull latest code
 ssh "$WIN_HOST" "set \"PATH=${WIN_PATH};%PATH%\" && cd ${WIN_PROJECT_DIR} && git checkout -- . && git pull --ff-only"
@@ -136,7 +183,7 @@ else
   echo "  Windows code signing: DISABLED (no CERTUM_CERT_SHA1)"
 fi
 
-echo "==> [7/7] Running Windows build..."
+echo "==> [8/8] Running Windows build..."
 # Skip version-inject (package.json already has correct version from scp)
 # Run electron-vite build directly, then electron-builder
 ssh "$WIN_HOST" "set \"PATH=${WIN_PATH};%PATH%\" && ${SIGN_ENV}cd ${WIN_PROJECT_DIR} && pnpm install --frozen-lockfile && pnpm exec electron-vite build && pnpm electron-builder --win --arm64 --x64 --config electron-builder.yml"
