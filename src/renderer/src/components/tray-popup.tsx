@@ -14,6 +14,7 @@ import { useLayout } from '@/providers/layout-provider';
 import { LiquidGlassLayout } from './layouts/liquid-glass-layout';
 import { LayeredLayout } from './layouts/layered-layout';
 import { HeroLayout } from './layouts/hero-layout';
+import { ErrorBoundary } from './error-boundary';
 
 // ============================================================
 // Exported types and helpers
@@ -26,7 +27,10 @@ export interface LayoutProps {
   onStart: () => void;
   onStop: () => void;
   onResume: (entryId: string) => void;
-  onUpdateEntry: (entryId: string, params: { description?: string; projectId?: string | null }) => void;
+  onUpdateEntry: (
+    entryId: string,
+    params: { description?: string; projectId?: string | null },
+  ) => void;
   selectedProject: ProjectOption | null;
   onProjectSelect: (project: ProjectOption | null) => void;
   description: string;
@@ -56,21 +60,21 @@ export function formatDuration(seconds: number): string {
 // useElapsedSeconds — ticks every second while timer is running
 // ============================================================
 
-function useElapsedSeconds(startedAt: string | null, running: boolean): number {
+function useElapsedSeconds(startedAt: string | null, running: boolean, offset: number = 0): number {
   const [elapsed, setElapsed] = useState(0);
 
   useEffect(() => {
     if (!running || !startedAt) {
-      setElapsed(0);
+      setElapsed(offset);
       return;
     }
 
     const compute = () =>
-      Math.max(0, Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000));
+      offset + Math.max(0, Math.round((Date.now() - new Date(startedAt).getTime()) / 1000));
     setElapsed(compute());
     const interval = setInterval(() => setElapsed(compute()), 1000);
     return () => clearInterval(interval);
-  }, [startedAt, running]);
+  }, [startedAt, running, offset]);
 
   return elapsed;
 }
@@ -79,19 +83,34 @@ function useElapsedSeconds(startedAt: string | null, running: boolean): number {
 // TimerView — authenticated content using real data
 // ============================================================
 
-function TimerView({
-  onSettingsClick,
-}: {
-  onSettingsClick: () => void;
-}) {
+function TimerView({ onSettingsClick }: { onSettingsClick: () => void }) {
   const data = useData();
   const { layout } = useLayout();
   const { environmentConfig } = useAuth();
   const [selectedProject, setSelectedProject] = useState<ProjectOption | null>(null);
   const [description, setDescription] = useState('');
-  const [statusState] = useState<StatusState>('none');
+  const statusState: StatusState = data.mutationError ? 'mutation-error' : 'none';
   const [statusDismissed, setStatusDismissed] = useState(false);
-  const elapsed = useElapsedSeconds(data.timer.entry?.startedAt ?? null, data.timer.running);
+  // Reset dismissed state when a new mutation error appears
+  const prevMutationError = useRef(data.mutationError);
+  useEffect(() => {
+    if (data.mutationError && data.mutationError !== prevMutationError.current) {
+      setStatusDismissed(false);
+    }
+    prevMutationError.current = data.mutationError;
+  }, [data.mutationError]);
+  const completedDuration =
+    data.timer.entry?.segments
+      .filter((s) => s.durationSeconds != null)
+      .reduce((sum, s) => sum + s.durationSeconds!, 0) ?? 0;
+  const runningSegment = data.timer.entry?.segments.find(
+    (s) => s.type === 'clocked' && !s.stoppedAt,
+  );
+  const elapsed = useElapsedSeconds(
+    runningSegment?.startedAt ?? null,
+    data.timer.running,
+    completedDuration,
+  );
   const descriptionCommitRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSyncedEntryIdRef = useRef<string | null>(null);
   const defaultProjectIdRef = useRef<string | null>(null);
@@ -135,7 +154,7 @@ function TimerView({
     setDescription(entry.description || '');
     // Find matching project
     const matchedProject = entry.projectId
-      ? data.projects.find((p) => p.id === entry.projectId) ?? null
+      ? (data.projects.find((p) => p.id === entry.projectId) ?? null)
       : null;
     setSelectedProject(matchedProject);
   }, [data.timer.running, data.timer.entry, data.projects]);
@@ -258,8 +277,12 @@ function TimerView({
           {statusState !== 'none' && !statusDismissed && (
             <StatusBanner
               status={statusState}
-              onDismiss={() => setStatusDismissed(true)}
+              onDismiss={() => {
+                setStatusDismissed(true);
+                data.dismissMutationError();
+              }}
               onStopTimer={handleStop}
+              mutationError={data.mutationError ?? undefined}
             />
           )}
         </AnimatePresence>
@@ -357,13 +380,14 @@ export function TrayPopup() {
       />
       <div className="flex min-h-0 flex-1">
         {/* Main popup column — stable ref for ResizeObserver */}
-        <div ref={contentRef} className="flex flex-col" style={{ width: popupWidth, flexShrink: 0 }}>
+        <div
+          ref={contentRef}
+          className="flex flex-col"
+          style={{ width: popupWidth, flexShrink: 0 }}
+        >
           <AnimatePresence mode="wait">
             {isLoading ? (
-              <div
-                key="loading"
-                className="flex h-screen items-center justify-center"
-              >
+              <div key="loading" className="flex h-screen items-center justify-center">
                 <Loader2
                   className="animate-spin text-primary/40"
                   style={{ width: scaled(24), height: scaled(24) }}
@@ -388,9 +412,11 @@ export function TrayPopup() {
                 exit={{ opacity: 0, x: -20 }}
                 transition={{ duration: 0.2 }}
               >
-                <DataProvider>
-                  <TimerView onSettingsClick={handleSettingsToggle} />
-                </DataProvider>
+                <ErrorBoundary>
+                  <DataProvider>
+                    <TimerView onSettingsClick={handleSettingsToggle} />
+                  </DataProvider>
+                </ErrorBoundary>
               </motion.div>
             )}
           </AnimatePresence>

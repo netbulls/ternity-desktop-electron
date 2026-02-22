@@ -9,7 +9,11 @@
 - Pill-pop animation on project selection (green flash)
 - LiquidEdge — drifting teal blobs when timer is running
 - Glassy frosted project picker with blur and inner highlight
-- Entries sorted by creation time (newest first within each day)
+- Mutation error banner with retry action for failed API calls
+- Error boundary with recovery UI — prevents white screen on unexpected crashes
+
+### Changed
+- Migrate to segments-based entry model — elapsed time computed from segments, durations from `totalDurationSeconds`
 
 ## [0.4.0] - 2026-02-20
 

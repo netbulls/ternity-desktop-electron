@@ -62,7 +62,10 @@ interface EntriesListProps {
   currentEntry: Entry | null;
   entries: DayGroup[];
   onResume: (entryId: string) => void;
-  onUpdateEntry: (entryId: string, params: { description?: string; projectId?: string | null }) => void;
+  onUpdateEntry: (
+    entryId: string,
+    params: { description?: string; projectId?: string | null },
+  ) => void;
   projects: ProjectOption[];
 }
 
@@ -92,22 +95,35 @@ interface ProjectPickerState {
   direction: 'down' | 'up';
 }
 
-export function EntriesList({ currentEntry, entries, onResume, onUpdateEntry, projects }: EntriesListProps) {
+export function EntriesList({
+  currentEntry,
+  entries,
+  onResume,
+  onUpdateEntry,
+  projects,
+}: EntriesListProps) {
   // Active edit lock — only one entry can be edited at a time
   const [editingEntryId, setEditingEntryId] = useState<string | null>(null);
   // Lifted project picker state — renders outside the scrollable area
   const [pickerState, setPickerState] = useState<ProjectPickerState | null>(null);
 
-  const handleOpenProjectPicker = useCallback((entryId: string, projectId: string | null, anchor: { top: number; bottom: number; left: number; right: number }) => {
-    const spaceBelow = window.innerHeight - anchor.bottom;
-    setPickerState({
-      entryId,
-      selectedProjectId: projectId,
-      anchor,
-      direction: spaceBelow < 250 ? 'up' : 'down',
-    });
-    setEditingEntryId(entryId);
-  }, []);
+  const handleOpenProjectPicker = useCallback(
+    (
+      entryId: string,
+      projectId: string | null,
+      anchor: { top: number; bottom: number; left: number; right: number },
+    ) => {
+      const spaceBelow = window.innerHeight - anchor.bottom;
+      setPickerState({
+        entryId,
+        selectedProjectId: projectId,
+        anchor,
+        direction: spaceBelow < 250 ? 'up' : 'down',
+      });
+      setEditingEntryId(entryId);
+    },
+    [],
+  );
 
   const handleCloseProjectPicker = useCallback(() => {
     setPickerState(null);
@@ -117,15 +133,18 @@ export function EntriesList({ currentEntry, entries, onResume, onUpdateEntry, pr
   // Track which entry just had a project saved — for save flash
   const [projectSavedEntryId, setProjectSavedEntryId] = useState<string | null>(null);
 
-  const handleProjectSelect = useCallback((project: ProjectOption | null) => {
-    if (pickerState) {
-      onUpdateEntry(pickerState.entryId, { projectId: project?.id ?? null });
-      setProjectSavedEntryId(pickerState.entryId);
-      setTimeout(() => setProjectSavedEntryId(null), 600);
-    }
-    setPickerState(null);
-    setEditingEntryId(null);
-  }, [pickerState, onUpdateEntry]);
+  const handleProjectSelect = useCallback(
+    (project: ProjectOption | null) => {
+      if (pickerState) {
+        onUpdateEntry(pickerState.entryId, { projectId: project?.id ?? null });
+        setProjectSavedEntryId(pickerState.entryId);
+        setTimeout(() => setProjectSavedEntryId(null), 600);
+      }
+      setPickerState(null);
+      setEditingEntryId(null);
+    },
+    [pickerState, onUpdateEntry],
+  );
 
   // Merge running entry into the entries list:
   // - Replace matching entry with currentEntry (has live local edits)
@@ -161,20 +180,11 @@ export function EntriesList({ currentEntry, entries, onResume, onUpdateEntry, pr
       }
     }
 
-    // Sort entries within each day by createdAt (newest first)
-    for (const day of copy) {
-      day.entries.sort((a, b) => {
-        const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-        const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-        return bTime - aTime;
-      });
-    }
-
     return copy;
   })();
 
   const selectedProject = pickerState?.selectedProjectId
-    ? projects.find((p) => p.id === pickerState.selectedProjectId) ?? null
+    ? (projects.find((p) => p.id === pickerState.selectedProjectId) ?? null)
     : null;
 
   return (
@@ -218,15 +228,13 @@ export function EntriesList({ currentEntry, entries, onResume, onUpdateEntry, pr
 
 function DayHeader({ label, duration }: { label: string; duration: string }) {
   return (
-    <div
-      className="sticky top-0"
-      style={{ zIndex: 50 }}
-    >
+    <div className="sticky top-0" style={{ zIndex: 50 }}>
       {/* Frosted layer with gradual mask */}
       <div
         className="absolute inset-0"
         style={{
-          background: 'linear-gradient(to bottom, hsl(var(--card) / 0.95) 0%, hsl(var(--card) / 0.05) 100%)',
+          background:
+            'linear-gradient(to bottom, hsl(var(--card) / 0.95) 0%, hsl(var(--card) / 0.05) 100%)',
           backdropFilter: 'blur(12px)',
           maskImage: 'linear-gradient(to bottom, black 30%, transparent 100%)',
           WebkitMaskImage: 'linear-gradient(to bottom, black 30%, transparent 100%)',
@@ -272,10 +280,17 @@ function EntryRow({
   entry: Entry;
   isRunning: boolean;
   onResume: (entryId: string) => void;
-  onUpdateEntry: (entryId: string, params: { description?: string; projectId?: string | null }) => void;
+  onUpdateEntry: (
+    entryId: string,
+    params: { description?: string; projectId?: string | null },
+  ) => void;
   editingEntryId: string | null;
   onEditingChange: (id: string | null) => void;
-  onOpenProjectPicker: (entryId: string, projectId: string | null, anchor: { top: number; bottom: number; left: number; right: number }) => void;
+  onOpenProjectPicker: (
+    entryId: string,
+    projectId: string | null,
+    anchor: { top: number; bottom: number; left: number; right: number },
+  ) => void;
   onCloseProjectPicker: () => void;
   projectSavedEntryId: string | null;
 }) {
@@ -314,7 +329,10 @@ function EntryRow({
     if (el) {
       const rect = el.getBoundingClientRect();
       onOpenProjectPicker(entry.id, entry.projectId, {
-        top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right,
+        top: rect.top,
+        bottom: rect.bottom,
+        left: rect.left,
+        right: rect.right,
       });
     }
     setEditingField('project');
@@ -458,7 +476,11 @@ function EntryRow({
         </div>
 
         {/* Project line — fixed height */}
-        <div ref={projectLineRef} className="relative flex items-center" style={{ height: scaled(16), marginTop: scaled(2) }}>
+        <div
+          ref={projectLineRef}
+          className="relative flex items-center"
+          style={{ height: scaled(16), marginTop: scaled(2) }}
+        >
           {editingField === 'project' ? (
             <div className="relative flex items-center" style={{ gap: scaled(4) }}>
               <motion.div
@@ -487,9 +509,7 @@ function EntryRow({
                       background: entry.projectColor ?? 'hsl(var(--primary))',
                     }}
                   />
-                  <span className="text-foreground">
-                    {entry.projectName || 'Select project'}
-                  </span>
+                  <span className="text-foreground">{entry.projectName || 'Select project'}</span>
                   <ChevronDown
                     style={{ width: scaled(8), height: scaled(8), transform: 'rotate(180deg)' }}
                     className="text-muted-foreground"
@@ -557,7 +577,7 @@ function EntryRow({
             className="relative z-10 shrink-0 font-brand font-semibold tabular-nums text-muted-foreground"
             style={{ fontSize: scaled(12) }}
           >
-            {formatDuration(entry.durationSeconds ?? 0)}
+            {formatDuration(entry.totalDurationSeconds)}
           </div>
           <motion.button
             className="relative z-10 flex shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground/30 transition-all hover:bg-primary/15 hover:text-primary"
@@ -593,11 +613,18 @@ function DayGroupRow({
   day: DayGroup;
   runningEntryId: string | null;
   onResume: (entryId: string) => void;
-  onUpdateEntry: (entryId: string, params: { description?: string; projectId?: string | null }) => void;
+  onUpdateEntry: (
+    entryId: string,
+    params: { description?: string; projectId?: string | null },
+  ) => void;
   projects: ProjectOption[];
   editingEntryId: string | null;
   onEditingChange: (id: string | null) => void;
-  onOpenProjectPicker: (entryId: string, projectId: string | null, anchor: { top: number; bottom: number; left: number; right: number }) => void;
+  onOpenProjectPicker: (
+    entryId: string,
+    projectId: string | null,
+    anchor: { top: number; bottom: number; left: number; right: number },
+  ) => void;
   onCloseProjectPicker: () => void;
   projectSavedEntryId: string | null;
   isFirst: boolean;
@@ -608,7 +635,10 @@ function DayGroupRow({
     <>
       {!isFirst && (
         <div
-          style={{ margin: `${scaled(1)} ${scaled(14)}`, borderTop: '1px solid hsl(var(--border) / 0.08)' }}
+          style={{
+            margin: `${scaled(1)} ${scaled(14)}`,
+            borderTop: '1px solid hsl(var(--border) / 0.08)',
+          }}
         />
       )}
       <DayHeader label={formatDateLabel(day.date)} duration={formatDuration(day.totalSeconds)} />

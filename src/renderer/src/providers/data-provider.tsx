@@ -9,7 +9,19 @@ import {
 } from 'react';
 import { useAuth } from './auth-provider';
 import { apiFetch, ApiError } from '@/lib/api';
-import type { Entry, TimerState, DayGroup, Stats, ProjectOption, UserProfile } from '@/lib/api-types';
+import type {
+  Entry,
+  TimerState,
+  DayGroup,
+  Stats,
+  ProjectOption,
+  UserProfile,
+} from '@/lib/api-types';
+
+interface MutationError {
+  message: string;
+  retry: () => void;
+}
 
 interface DataContextValue {
   timer: TimerState;
@@ -19,11 +31,16 @@ interface DataContextValue {
   userProfile: UserProfile | null;
   isLoading: boolean;
   error: string | null;
+  mutationError: MutationError | null;
+  dismissMutationError: () => void;
   startTimer: (params: { description?: string; projectId?: string }) => Promise<void>;
   stopTimer: () => Promise<void>;
   resumeTimer: (entryId: string) => Promise<void>;
   updateTimer: (params: { description?: string; projectId?: string | null }) => Promise<void>;
-  updateEntry: (entryId: string, params: { description?: string; projectId?: string | null }) => void;
+  updateEntry: (
+    entryId: string,
+    params: { description?: string; projectId?: string | null },
+  ) => void;
   patchTimerLocal: (params: { description?: string; projectId?: string | null }) => void;
 }
 
@@ -31,6 +48,59 @@ const DEFAULT_TIMER: TimerState = { running: false, entry: null };
 const DEFAULT_STATS: Stats = { todaySeconds: 0, weekSeconds: 0 };
 
 const DataContext = createContext<DataContextValue | null>(null);
+
+// Compat shim: normalize old API response (flat startedAt/stoppedAt/durationSeconds)
+// into the new segments-based shape. Remove once API is fully migrated.
+/* eslint-disable @typescript-eslint/no-explicit-any */
+function normalizeEntry(raw: any): Entry {
+  if (raw.segments) return raw as Entry; // already new shape
+  const startedAt = raw.startedAt ?? null;
+  const stoppedAt = raw.stoppedAt ?? null;
+  const durationSeconds = raw.durationSeconds ?? null;
+  const isRunning = startedAt != null && stoppedAt == null;
+  const entry: Entry = {
+    id: raw.id,
+    description: raw.description,
+    projectId: raw.projectId,
+    projectName: raw.projectName,
+    projectColor: raw.projectColor,
+    clientName: raw.clientName,
+    labels: raw.labels,
+    segments: startedAt
+      ? [
+          {
+            id: `compat-${raw.id}`,
+            type: 'clocked',
+            startedAt,
+            stoppedAt,
+            durationSeconds,
+            note: null,
+            createdAt: raw.createdAt,
+          },
+        ]
+      : [],
+    totalDurationSeconds: durationSeconds ?? 0,
+    isRunning,
+    createdAt: raw.createdAt,
+    userId: raw.userId,
+  };
+  return entry;
+}
+
+function normalizeTimerState(raw: any): TimerState {
+  return {
+    running: raw.running,
+    entry: raw.entry ? normalizeEntry(raw.entry) : null,
+  };
+}
+
+function normalizeDayGroups(raw: any[]): DayGroup[] {
+  return raw.map((day) => ({
+    ...day,
+    entries: day.entries.map(normalizeEntry),
+  }));
+}
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 function getEntriesDateRange(): { from: string; to: string } {
   const today = new Date();
@@ -51,6 +121,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(!isDemo);
   const [error, setError] = useState<string | null>(null);
+  const [mutationError, setMutationError] = useState<MutationError | null>(null);
+  const dismissMutationError = useCallback(() => setMutationError(null), []);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timerDirtyUntilRef = useRef<number>(0); // timestamp — suppress poll overwrites until this time
 
@@ -92,10 +164,11 @@ export function DataProvider({ children }: { children: ReactNode }) {
   );
 
   const fetchTimerAndStats = useCallback(async () => {
-    const [timerRes, statsRes] = await Promise.all([
+    const [timerRaw, statsRes] = await Promise.all([
       apiFetch<TimerState>(apiBaseUrl, environment, '/api/timer'),
       apiFetch<Stats>(apiBaseUrl, environment, '/api/stats'),
     ]);
+    const timerRes = normalizeTimerState(timerRaw);
     // Don't overwrite optimistic timer updates — wait until the dirty window expires
     if (Date.now() < timerDirtyUntilRef.current) {
       // Only update stats, keep the local timer state
@@ -110,12 +183,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   const fetchEntries = useCallback(async () => {
     const { from, to } = getEntriesDateRange();
-    const res = await apiFetch<DayGroup[]>(
+    const raw = await apiFetch<DayGroup[]>(
       apiBaseUrl,
       environment,
       `/api/entries?from=${from}&to=${to}`,
     );
-    setEntries(res);
+    setEntries(normalizeDayGroups(raw));
   }, [apiBaseUrl, environment]);
 
   const fetchProjects = useCallback(async () => {
@@ -135,7 +208,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
     (async () => {
       try {
-        await Promise.all([fetchTimerAndStats(), fetchEntries(), fetchProjects(), fetchUserProfile()]);
+        await Promise.all([
+          fetchTimerAndStats(),
+          fetchEntries(),
+          fetchProjects(),
+          fetchUserProfile(),
+        ]);
       } catch (err) {
         if (!cancelled) handleApiError(err);
       } finally {
@@ -166,7 +244,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
     };
-  }, [isDemo, fetchTimerAndStats, fetchEntries, fetchProjects, entries.length, projects.length, handleApiError]);
+  }, [
+    isDemo,
+    fetchTimerAndStats,
+    fetchEntries,
+    fetchProjects,
+    entries.length,
+    projects.length,
+    handleApiError,
+  ]);
 
   const refetchAfterMutation = useCallback(async () => {
     await Promise.all([fetchTimerAndStats(), fetchEntries()]);
@@ -179,9 +265,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
           method: 'POST',
           body: { description: params.description, projectId: params.projectId },
         });
+        setMutationError(null);
         await refetchAfterMutation();
       } catch (err) {
         handleApiError(err);
+        setMutationError({
+          message: 'Failed to start timer',
+          retry: () => startTimer(params),
+        });
       }
     },
     [apiBaseUrl, environment, refetchAfterMutation, handleApiError],
@@ -191,9 +282,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
     try {
       timerDirtyUntilRef.current = 0; // Clear dirty window so refetch applies
       await apiFetch<TimerState>(apiBaseUrl, environment, '/api/timer/stop', { method: 'POST' });
+      setMutationError(null);
       await refetchAfterMutation();
     } catch (err) {
       handleApiError(err);
+      setMutationError({
+        message: 'Failed to stop timer',
+        retry: () => stopTimer(),
+      });
     }
   }, [apiBaseUrl, environment, refetchAfterMutation, handleApiError]);
 
@@ -204,9 +300,14 @@ export function DataProvider({ children }: { children: ReactNode }) {
         await apiFetch<TimerState>(apiBaseUrl, environment, `/api/timer/resume/${entryId}`, {
           method: 'POST',
         });
+        setMutationError(null);
         await refetchAfterMutation();
       } catch (err) {
         handleApiError(err);
+        setMutationError({
+          message: 'Failed to resume timer',
+          retry: () => resumeTimer(entryId),
+        });
       }
     },
     [apiBaseUrl, environment, refetchAfterMutation, handleApiError],
@@ -252,8 +353,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
           method: 'PATCH',
           body: params,
         });
+        setMutationError(null);
       } catch (err) {
         console.warn('[data] updateTimer failed:', err instanceof Error ? err.message : err);
+        setMutationError({
+          message: 'Failed to save changes',
+          retry: () => updateTimer(params),
+        });
       }
     },
     [apiBaseUrl, environment, timer.running, timer.entry, patchTimerLocal],
@@ -294,9 +400,16 @@ export function DataProvider({ children }: { children: ReactNode }) {
         method: 'PATCH',
         body: params,
       })
-        .then(() => fetchEntries())
+        .then(() => {
+          setMutationError(null);
+          return fetchEntries();
+        })
         .catch((err) => {
           console.warn('[data] updateEntry failed:', err instanceof Error ? err.message : err);
+          setMutationError({
+            message: 'Failed to save changes',
+            retry: () => updateEntry(entryId, params),
+          });
           fetchEntries(); // Revert optimistic update
         });
     },
@@ -313,6 +426,8 @@ export function DataProvider({ children }: { children: ReactNode }) {
         userProfile,
         isLoading,
         error,
+        mutationError,
+        dismissMutationError,
         startTimer,
         stopTimer,
         resumeTimer,

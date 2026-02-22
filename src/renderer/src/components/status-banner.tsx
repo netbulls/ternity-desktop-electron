@@ -2,16 +2,18 @@ import { motion } from 'motion/react';
 import { WifiOff, AlertTriangle, Clock, X } from 'lucide-react';
 import { scaled } from '@/lib/scaled';
 
-export type StatusState = 'none' | 'offline' | 'sync-failed' | 'long-timer';
+export type StatusState = 'none' | 'offline' | 'sync-failed' | 'long-timer' | 'mutation-error';
 
 export function StatusBanner({
   status,
   onDismiss,
   onStopTimer,
+  mutationError,
 }: {
   status: StatusState;
   onDismiss: () => void;
   onStopTimer: () => void;
+  mutationError?: { message: string; retry: () => void };
 }) {
   if (status === 'none') return null;
 
@@ -40,6 +42,15 @@ export function StatusBanner({
       gradient: 'linear-gradient(90deg, hsl(45 93% 47% / 0.12), hsl(40 90% 45% / 0.06))',
       shimmerColor: 'hsl(45 93% 47% / 0.06)',
       action: { label: 'Stop', onClick: onStopTimer },
+    },
+    'mutation-error': {
+      icon: AlertTriangle,
+      message: mutationError?.message ?? 'Something went wrong',
+      color: 'hsl(var(--destructive))',
+      gradient:
+        'linear-gradient(90deg, hsl(var(--destructive) / 0.12), hsl(var(--destructive) / 0.05))',
+      shimmerColor: 'hsl(var(--destructive) / 0.06)',
+      action: mutationError ? { label: 'Retry', onClick: mutationError.retry } : null,
     },
   }[status];
 
