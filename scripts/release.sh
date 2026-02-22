@@ -7,10 +7,10 @@
 #
 # Builds:
 #   macOS:    arm64 + x64 DMGs (signed + notarized)
-#   Linux:    arm64 + x64 AppImages + debs
+#   Linux:    arm64 + x64 AppImages + debs + rpms
 #   Windows:  arm64 + x64 NSIS installers (built on Windows VM via SSH)
 #
-# Total: 8 artifacts per release.
+# Total: 10 artifacts per release.
 #
 # Requires env vars from .env.signing:
 #   APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID (macOS notarization)
@@ -110,12 +110,12 @@ pnpm tsx scripts/build-dmg.ts "$MAC_X64_APP"
 ARTIFACTS+=("dist/Ternity-Electron-${VERSION}-x64.dmg")
 
 # --- Linux (all archs, all targets) ---
-echo "==> [5/7] Building Linux (AppImage + deb, arm64 + x64)..."
-pnpm electron-builder --config electron-builder.yml --linux deb AppImage --arm64 --x64
+echo "==> [5/7] Building Linux (AppImage + deb + rpm, arm64 + x64)..."
+pnpm electron-builder --config electron-builder.yml --linux deb rpm AppImage --arm64 --x64
 
 # electron-builder uses platform-native arch names (x86_64 for AppImage, amd64 for deb)
 # so we glob for actual files instead of assuming names
-for file in dist/Ternity-Electron-${VERSION}-*.AppImage dist/Ternity-Electron-${VERSION}-*.deb; do
+for file in dist/Ternity-Electron-${VERSION}-*.AppImage dist/Ternity-Electron-${VERSION}-*.deb dist/Ternity-Electron-${VERSION}-*.rpm; do
   [ -f "$file" ] && ARTIFACTS+=("$file")
 done
 
