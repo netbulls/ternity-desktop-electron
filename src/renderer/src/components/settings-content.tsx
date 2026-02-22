@@ -7,7 +7,7 @@ import { SCALES, useScale } from '@/providers/scale-provider';
 import { useTheme } from '@/providers/theme-provider';
 import { LAYOUTS, useLayout, type LayoutId } from '@/providers/layout-provider';
 import { useAuth } from '@/providers/auth-provider';
-import { useOptionalData } from '@/providers/data-provider';
+import { useOptionalData, getCachedProjects, getCachedDefaultProjectId, setCachedDefaultProjectId } from '@/providers/data-provider';
 import { ProjectPicker } from './project-picker';
 import type { ProjectOption } from '@/lib/api-types';
 
@@ -23,8 +23,8 @@ export function SettingsContent({
   const data = useOptionalData();
   const [startAtLogin, setStartAtLogin] = useState(false);
   const [rememberPosition, setRememberPosition] = useState(false);
-  const [defaultProjectId, setDefaultProjectId] = useState<string | null>(null);
-  const [projects, setProjects] = useState<ProjectOption[]>([]);
+  const [defaultProjectId, setDefaultProjectId] = useState<string | null>(getCachedDefaultProjectId);
+  const [projects, setProjects] = useState<ProjectOption[]>(getCachedProjects);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerAnchor, setPickerAnchor] = useState<{ top: number; bottom: number; left: number; right: number } | null>(null);
   const [pillPop, setPillPop] = useState(false);
@@ -33,13 +33,7 @@ export function SettingsContent({
   useEffect(() => {
     window.electronAPI?.getLoginItem().then(setStartAtLogin);
     window.electronAPI?.getRememberPosition().then(setRememberPosition);
-    window.electronAPI?.getDefaultProject().then(setDefaultProjectId);
-    window.electronAPI
-      ?.apiFetch(environment, '/api/projects')
-      .then((res) => {
-        if (res.data && Array.isArray(res.data)) setProjects(res.data);
-      });
-  }, [environment]);
+  }, []);
 
   const toggleStartAtLogin = () => {
     const next = !startAtLogin;
@@ -54,8 +48,10 @@ export function SettingsContent({
   };
 
   const handleDefaultProjectSelect = (project: ProjectOption | null) => {
-    setDefaultProjectId(project?.id ?? null);
-    window.electronAPI?.setDefaultProject(project?.id ?? null);
+    const id = project?.id ?? null;
+    setDefaultProjectId(id);
+    setCachedDefaultProjectId(id);
+    window.electronAPI?.setDefaultProject(id);
     window.dispatchEvent(
       new CustomEvent('default-project-changed', { detail: project?.id ?? null }),
     );

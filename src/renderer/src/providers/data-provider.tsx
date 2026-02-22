@@ -112,6 +112,19 @@ function getEntriesDateRange(): { from: string; to: string } {
   };
 }
 
+// Module-level cache so SettingsContent (outside DataProvider) can read data instantly
+let cachedProjects: ProjectOption[] = [];
+let cachedDefaultProjectId: string | null = null;
+export function getCachedProjects(): ProjectOption[] {
+  return cachedProjects;
+}
+export function getCachedDefaultProjectId(): string | null {
+  return cachedDefaultProjectId;
+}
+export function setCachedDefaultProjectId(id: string | null): void {
+  cachedDefaultProjectId = id;
+}
+
 export function DataProvider({ children }: { children: ReactNode }) {
   const { environment, environmentConfig, isAuthenticated, isDemo, signOut } = useAuth();
   const [timer, setTimer] = useState<TimerState>(DEFAULT_TIMER);
@@ -194,6 +207,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
   const fetchProjects = useCallback(async () => {
     const res = await apiFetch<ProjectOption[]>(apiBaseUrl, environment, '/api/projects');
     setProjects(res);
+    cachedProjects = res;
   }, [apiBaseUrl, environment]);
 
   const fetchUserProfile = useCallback(async () => {
@@ -213,6 +227,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
           fetchEntries(),
           fetchProjects(),
           fetchUserProfile(),
+          // Pre-cache default project ID for settings panel
+          window.electronAPI?.getDefaultProject().then((id) => {
+            cachedDefaultProjectId = id ?? null;
+          }),
         ]);
       } catch (err) {
         if (!cancelled) handleApiError(err);
