@@ -90,7 +90,7 @@ WIN_PROJECT_DIR="C:\\Users\\erace\\ternity-desktop"
 WIN_PATH="C:\\Program Files\\nodejs;C:\\Users\\erace\\AppData\\Roaming\\npm;C:\\Program Files\\Git\\bin;C:\\Program Files (x86)\\Windows Kits\\10\\bin\\10.0.18362.0\\x86"
 LINUX_ARM64_HOST="ubuntu-arm64"
 LINUX_X64_HOST="ubuntu-x64"
-LINUX_PROJECT_DIR="\$HOME/ternity-desktop"
+LINUX_PROJECT_DIR="ternity-desktop"  # relative to home dir (works with both ssh and scp)
 
 # --- macOS arm64 ---
 echo "==> [1/8] Building macOS arm64..."
@@ -143,7 +143,7 @@ for VM_HOST in "$LINUX_ARM64_HOST" "$LINUX_X64_HOST"; do
   # nvm needs sourcing for non-interactive SSH on some VMs
   NVM_PREFIX="source ~/.nvm/nvm.sh 2>/dev/null;"
   echo "  Building RPM on ${VM_HOST}..."
-  ssh "$VM_HOST" "${NVM_PREFIX} cd ${LINUX_PROJECT_DIR} && git checkout -- . && git pull origin main --ff-only && pnpm install --frozen-lockfile"
+  ssh "$VM_HOST" "${NVM_PREFIX} cd ${LINUX_PROJECT_DIR} && git checkout -- . && git pull origin main --ff-only && rm -rf dist/ && pnpm install --frozen-lockfile"
   # SCP version-injected package.json + electron-builder config
   scp package.json "${VM_HOST}:ternity-desktop/package.json"
   scp electron-builder.yml "${VM_HOST}:ternity-desktop/electron-builder.yml"
