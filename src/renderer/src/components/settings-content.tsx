@@ -5,7 +5,7 @@ import { scaled } from '@/lib/scaled';
 import { THEMES, type ThemeId } from '@/lib/themes';
 import { SCALES, useScale } from '@/providers/scale-provider';
 import { useTheme } from '@/providers/theme-provider';
-import { LAYOUTS, useLayout, type LayoutId } from '@/providers/layout-provider';
+import { LAYOUTS, TIMER_STYLES, useLayout, type LayoutId, type TimerStyleId } from '@/providers/layout-provider';
 import { useAuth } from '@/providers/auth-provider';
 import { useOptionalData, getCachedProjects, getCachedDefaultProjectId, setCachedDefaultProjectId } from '@/providers/data-provider';
 import { ProjectPicker } from './project-picker';
@@ -18,7 +18,7 @@ export function SettingsContent({
 }) {
   const { theme, setTheme } = useTheme();
   const { scale, setScale } = useScale();
-  const { layout, setLayout } = useLayout();
+  const { layout, setLayout, timerStyle, setTimerStyle } = useLayout();
   const { environment, environmentConfig, user, signOut } = useAuth();
   const data = useOptionalData();
   const [startAtLogin, setStartAtLogin] = useState(false);
@@ -128,6 +128,27 @@ export function SettingsContent({
             {LAYOUTS.map((l) => (
               <option key={l.id} value={l.id} className="bg-card text-foreground">
                 {l.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Timer */}
+        <div
+          className="flex items-center justify-between border-b border-border/50"
+          style={{ padding: `${scaled(7)} ${scaled(10)}` }}
+        >
+          <span className="text-muted-foreground">Timer</span>
+          <select
+            className="rounded-md border-none bg-transparent text-right outline-none disabled:cursor-default disabled:opacity-40"
+            style={{ fontSize: scaled(10), padding: `${scaled(2)} 0` }}
+            value={layout === 'liquid-glass' ? timerStyle : 'default'}
+            onChange={(e) => setTimerStyle(e.target.value as TimerStyleId)}
+            disabled={layout !== 'liquid-glass'}
+          >
+            {TIMER_STYLES.map((s) => (
+              <option key={s.id} value={s.id} className="bg-card text-foreground">
+                {s.name}
               </option>
             ))}
           </select>

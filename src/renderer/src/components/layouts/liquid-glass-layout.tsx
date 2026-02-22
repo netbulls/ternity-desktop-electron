@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Play, Square, FolderKanban, ChevronDown, ExternalLink } from 'lucide-react';
 import { scaled } from '@/lib/scaled';
@@ -8,13 +8,68 @@ import { EntriesList } from '../entries-list';
 import type { LayoutProps } from '../tray-popup';
 import { formatTimer, formatDuration } from '../tray-popup';
 
-const breathingBorderAnimation = {
-  borderColor: [
-    'hsl(var(--primary) / 0.3)',
-    'hsl(var(--primary) / 0.6)',
-    'hsl(var(--primary) / 0.3)',
-  ],
-};
+// ============================================================
+// State color system
+// ============================================================
+type TimerState = 'idle' | 'incomplete' | 'running';
+
+function stateColors(state: TimerState) {
+  switch (state) {
+    case 'idle':
+      return {
+        orbBg: 'hsl(var(--muted-foreground) / 0.2)',
+        orbShadow: '0 0 0px transparent',
+        timerColor: 'hsl(var(--muted-foreground) / 0.15)',
+        borderColor: 'hsl(var(--border) / 0.3)',
+        cardTint: 'transparent',
+        btnBg: 'hsl(var(--primary) / 0.06)',
+        btnBorder: 'hsl(var(--primary) / 0.2)',
+        btnColor: 'hsl(var(--primary))',
+        btnHoverBg: 'hsl(var(--primary) / 0.12)',
+        btnHoverBorder: 'hsl(var(--primary) / 0.35)',
+      };
+    case 'incomplete':
+      return {
+        orbBg: 'hsl(38 92% 50%)',
+        orbShadow: '0 0 10px hsl(38 92% 50% / 0.4), 0 0 24px hsl(38 92% 50% / 0.15)',
+        timerColor: 'hsl(38 92% 50%)',
+        borderColor: 'hsl(38 92% 50% / 0.15)',
+        cardTint: 'hsl(38 92% 50% / 0.02)',
+        btnBg: 'hsl(var(--destructive) / 0.06)',
+        btnBorder: 'hsl(var(--destructive) / 0.2)',
+        btnColor: 'hsl(var(--destructive))',
+        btnHoverBg: 'hsl(var(--destructive) / 0.12)',
+        btnHoverBorder: 'hsl(var(--destructive) / 0.35)',
+      };
+    case 'running':
+      return {
+        orbBg: 'hsl(var(--primary))',
+        orbShadow: '0 0 10px hsl(var(--primary) / 0.4), 0 0 24px hsl(var(--primary) / 0.15)',
+        timerColor: 'hsl(var(--primary))',
+        borderColor: 'hsl(var(--primary) / 0.15)',
+        cardTint: 'hsl(var(--primary) / 0.02)',
+        btnBg: 'hsl(var(--destructive) / 0.06)',
+        btnBorder: 'hsl(var(--destructive) / 0.2)',
+        btnColor: 'hsl(var(--destructive))',
+        btnHoverBg: 'hsl(var(--destructive) / 0.12)',
+        btnHoverBorder: 'hsl(var(--destructive) / 0.35)',
+      };
+  }
+}
+
+// ============================================================
+// Breathing border helpers
+// ============================================================
+function breathingBorder(state: TimerState) {
+  const color = state === 'incomplete' ? '38 92% 50%' : 'var(--primary)';
+  return {
+    borderColor: [
+      `hsl(${color} / 0.3)`,
+      `hsl(${color} / 0.6)`,
+      `hsl(${color} / 0.3)`,
+    ],
+  };
+}
 
 const breathingBorderTransition = {
   duration: 2,
@@ -39,14 +94,22 @@ export function LiquidGlassLayout({
   stats,
   projects,
   webAppUrl,
+  timerStyle,
 }: LayoutProps) {
   const digits = formatTimer(elapsed).split('');
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerAnchor, setPickerAnchor] = useState<{ top: number; bottom: number; left: number; right: number } | null>(null);
-  const [pillPop, setPillPop] = useState(false);
+  const [pillAnim, setPillAnim] = useState('');
   const [inputFocused, setInputFocused] = useState(false);
+  const [inputAnimClass, setInputAnimClass] = useState('');
+  const prevDescRef = useRef('');
   const pillRef = useRef<HTMLSpanElement>(null);
-  const isIncomplete = timerRunning && !currentEntry?.description;
+  const [ripples, setRipples] = useState<{ id: number; x: number; y: number; color: string }[]>([]);
+  const nextRippleId = useRef(0);
+
+  const isIncomplete = timerRunning && (!description.trim() || !selectedProject);
+  const state: TimerState = !timerRunning ? 'idle' : isIncomplete ? 'incomplete' : 'running';
+  const colors = stateColors(state);
 
   const handlePillClick = () => {
     if (pillRef.current) {
@@ -57,11 +120,45 @@ export function LiquidGlassLayout({
   };
 
   const handleProjectSelect = (project: Parameters<typeof onProjectSelect>[0]) => {
+    const wasSelected = !!selectedProject;
     onProjectSelect(project);
     setPickerOpen(false);
-    setPillPop(true);
-    setTimeout(() => setPillPop(false), 500);
+    // pill-pop for select, pill-clear for deselect
+    if (project) {
+      setPillAnim('pill-pop');
+    } else if (wasSelected) {
+      setPillAnim('pill-clear');
+    }
+    setTimeout(() => setPillAnim(''), 500);
   };
+
+  const commitDescription = useCallback(() => {
+    const prev = prevDescRef.current;
+    const curr = description;
+    if (curr === prev) return;
+    const cleared = curr.trim().length === 0 && prev.trim().length > 0;
+    const filled = curr.trim().length > 0;
+    prevDescRef.current = curr;
+    if (cleared || filled) {
+      setInputAnimClass(cleared ? 'input-clear' : 'input-commit');
+      setTimeout(() => setInputAnimClass(''), 500);
+    }
+  }, [description]);
+
+  const handleButtonClick = useCallback((e: React.MouseEvent) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const id = nextRippleId.current++;
+    const color = timerRunning ? 'hsl(var(--destructive) / 0.2)' : 'hsl(var(--primary) / 0.2)';
+    setRipples((r) => [...r, { id, x, y, color }]);
+    setTimeout(() => setRipples((r) => r.filter((ri) => ri.id !== id)), 600);
+    if (timerRunning) {
+      onStop();
+    } else {
+      onStart();
+    }
+  }, [timerRunning, onStop, onStart]);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col" style={{ padding: scaled(8), gap: scaled(8) }}>
@@ -76,142 +173,184 @@ export function LiquidGlassLayout({
           border: '1px solid',
         }}
         animate={{
-          borderColor: timerRunning
-            ? 'hsl(var(--primary) / 0.2)'
-            : 'hsl(var(--border) / 0.3)',
+          borderColor: colors.borderColor,
         }}
-        transition={{ duration: 0.3 }}
+        transition={{ duration: 0.6, ease: 'easeInOut' }}
       >
+        {/* Card tint overlay */}
+        <motion.div
+          className="pointer-events-none absolute inset-0"
+          style={{ borderRadius: scaled(14) }}
+          animate={{ background: colors.cardTint }}
+          transition={{ duration: 0.8, ease: 'easeInOut' }}
+        />
+
         {/* Top highlight (glass refraction) */}
         <div
-          className="pointer-events-none absolute left-0 right-0 top-0"
+          className="pointer-events-none absolute inset-x-0 top-0"
           style={{
             height: '50%',
             background:
               'linear-gradient(180deg, hsl(var(--foreground) / 0.02) 0%, transparent 100%)',
+            borderRadius: `${scaled(14)}px ${scaled(14)}px 0 0`,
           }}
         />
 
+        {/* Content — relative wrapper to sit above tint overlay */}
+        <div className="relative">
+
         {/* Header: Orb + Timer + Button */}
         <div
-          className="relative flex items-center"
-          style={{ gap: scaled(10), marginBottom: scaled(6) }}
+          className="flex items-center"
+          style={{ gap: scaled(10), marginBottom: scaled(7) }}
         >
-          {/* Status Orb */}
-          <motion.div
-            className="shrink-0 rounded-full"
-            style={{ width: scaled(10), height: scaled(10) }}
-            animate={{
-              background: isIncomplete
-                ? 'hsl(38 92% 50%)'
-                : timerRunning
-                  ? 'hsl(var(--primary))'
-                  : 'hsl(var(--muted-foreground) / 0.2)',
-              boxShadow: isIncomplete
-                ? '0 0 8px hsl(38 92% 50% / 0.5)'
-                : timerRunning
-                  ? '0 0 8px hsl(var(--primary) / 0.5), 0 0 20px hsl(var(--primary) / 0.2)'
-                  : '0 0 0px transparent',
-            }}
-            transition={{ duration: 0.3 }}
-          />
+          {/* Status Orb — with breathing pulse for incomplete */}
+          <div className="relative shrink-0" style={{ width: scaled(10), height: scaled(10) }}>
+            <AnimatePresence>
+              {state === 'incomplete' && (
+                <motion.div
+                  className="absolute inset-0 rounded-full"
+                  initial={{ scale: 1, opacity: 0 }}
+                  animate={{
+                    scale: [1, 2.2, 1],
+                    opacity: [0.4, 0, 0.4],
+                  }}
+                  exit={{ opacity: 0, scale: 1 }}
+                  transition={{
+                    duration: 2,
+                    repeat: Infinity,
+                    ease: 'easeInOut',
+                  }}
+                  style={{ background: 'hsl(38 92% 50% / 0.3)' }}
+                />
+              )}
+            </AnimatePresence>
+            <motion.div
+              className="absolute inset-0 rounded-full"
+              animate={{
+                background: colors.orbBg,
+                boxShadow: colors.orbShadow,
+              }}
+              transition={{ duration: 0.6, ease: 'easeInOut' }}
+            />
+          </div>
 
-          {/* Timer Display */}
-          <motion.div
-            className="font-brand font-bold tabular-nums tracking-wider"
-            style={{ fontSize: scaled(28), letterSpacing: '2px', lineHeight: 1, marginTop: scaled(2) }}
-            animate={{
-              color: timerRunning
-                ? 'hsl(var(--primary))'
-                : 'hsl(var(--muted-foreground) / 0.15)',
+          {/* Timer Display — flex + explicit height to center digits against button
+               (text-box-cap not supported in Electron's Chromium 132) */}
+          <motion.span
+            className="font-brand font-bold tabular-nums leading-none"
+            style={{
+              fontSize: scaled(28),
+              letterSpacing: '2px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              height: scaled(30),
             }}
-            transition={{ duration: 0.3 }}
+            animate={{
+              color: colors.timerColor,
+            }}
+            transition={{ duration: 0.6, ease: 'easeInOut' }}
           >
             {digits.map((d, i) => (
               <AnimatedDigit key={i} char={d} />
             ))}
-          </motion.div>
+          </motion.span>
 
-          {/* Play / Stop Button — single button that transforms between states */}
-          <div className="ml-auto">
-            <motion.button
-              className="flex items-center justify-center font-brand font-semibold uppercase"
-              style={{
-                height: scaled(30),
-                width: scaled(72),
-                borderRadius: scaled(10),
-                gap: scaled(6),
-                fontSize: scaled(10),
-                letterSpacing: '0.5px',
-              }}
-              animate={{
-                background: timerRunning
-                  ? 'hsl(var(--destructive))'
-                  : 'hsl(var(--primary))',
-                color: timerRunning
-                  ? 'hsl(var(--destructive-foreground))'
-                  : 'hsl(var(--primary-foreground))',
-              }}
-              transition={{ duration: 0.3 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={timerRunning ? onStop : onStart}
-            >
-              <AnimatePresence mode="wait" initial={false}>
-                {timerRunning ? (
-                  <motion.span
-                    key="stop"
-                    className="flex items-center"
-                    style={{ gap: scaled(6) }}
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.8 }}
-                    transition={{ duration: 0.15 }}
-                  >
-                    <Square style={{ width: scaled(11), height: scaled(11) }} fill="currentColor" />
-                    Stop
-                  </motion.span>
-                ) : (
-                  <motion.span
-                    key="start"
-                    className="flex items-center"
-                    style={{ gap: scaled(6) }}
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.8 }}
-                    transition={{ duration: 0.15 }}
-                  >
-                    <Play style={{ width: scaled(11), height: scaled(11) }} fill="currentColor" />
-                    Start
-                  </motion.span>
-                )}
-              </AnimatePresence>
-            </motion.button>
-          </div>
+          {/* Play / Stop Button — inline variant (hidden in wide mode) */}
+          {timerStyle !== 'liquid-glass-wide' && (
+          <motion.button
+            className="relative ml-auto flex cursor-pointer items-center justify-center overflow-hidden font-brand font-semibold uppercase"
+            style={{
+              height: scaled(30),
+              width: scaled(72),
+              borderRadius: scaled(10),
+              gap: scaled(6),
+              fontSize: scaled(10),
+              letterSpacing: '0.5px',
+              backdropFilter: 'blur(8px)',
+              border: '1px solid',
+            }}
+            animate={{
+              background: colors.btnBg,
+              borderColor: colors.btnBorder,
+              color: colors.btnColor,
+            }}
+            whileHover={{
+              background: colors.btnHoverBg,
+              borderColor: colors.btnHoverBorder,
+            }}
+            whileTap={{ scale: 0.9 }}
+            onClick={handleButtonClick}
+            transition={{ type: 'spring', damping: 15, stiffness: 300 }}
+          >
+            {ripples.map((r) => (
+              <motion.span
+                key={r.id}
+                className="pointer-events-none absolute rounded-full"
+                style={{ width: 40, height: 40, left: r.x - 20, top: r.y - 20, background: r.color }}
+                initial={{ scale: 0, opacity: 0.4 }}
+                animate={{ scale: 3.5, opacity: 0 }}
+                transition={{ duration: 0.5, ease: 'easeOut' }}
+              />
+            ))}
+            <AnimatePresence mode="wait" initial={false}>
+              {timerRunning ? (
+                <motion.span
+                  key="stop"
+                  className="relative z-[1] flex items-center"
+                  style={{ gap: scaled(6) }}
+                  initial={{ opacity: 0, scale: 0.7 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.7 }}
+                  transition={{ duration: 0.15 }}
+                >
+                  <Square style={{ width: scaled(11), height: scaled(11) }} fill="currentColor" />
+                  Stop
+                </motion.span>
+              ) : (
+                <motion.span
+                  key="start"
+                  className="relative z-[1] flex items-center"
+                  style={{ gap: scaled(6) }}
+                  initial={{ opacity: 0, scale: 0.7 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.7 }}
+                  transition={{ duration: 0.15 }}
+                >
+                  <Play style={{ width: scaled(11), height: scaled(11) }} fill="currentColor" />
+                  Start
+                </motion.span>
+              )}
+            </AnimatePresence>
+          </motion.button>
+          )}
         </div>
 
-        {/* Description input — always editable */}
+        {/* Description input — breathing border + commit/clear animations */}
         <div>
-          <input
-            className="w-full text-foreground outline-none placeholder:italic placeholder:text-muted-foreground/40"
+          <motion.input
+            className={`w-full text-foreground outline-none placeholder:italic placeholder:text-muted-foreground/40 ${inputAnimClass}`}
             style={{
-              padding: `${scaled(8)} ${scaled(10)}`,
+              padding: `${scaled(5.5)} ${scaled(10)}`,
               fontSize: scaled(13),
               fontWeight: 500,
               background: 'transparent',
-              border: `1px solid ${inputFocused ? 'hsl(var(--border) / 0.6)' : 'transparent'}`,
+              border: '1px solid',
               borderRadius: scaled(8),
               fontFamily: "'Inter', sans-serif",
-              transition: 'border-color 0.2s ease',
             }}
+            animate={inputFocused && !inputAnimClass ? breathingBorder(state) : { borderColor: 'transparent' }}
+            transition={inputFocused && !inputAnimClass ? breathingBorderTransition : { duration: 0.2 }}
             placeholder={
               timerRunning ? 'Add description...' : 'What are you working on?'
             }
             value={description}
-            onChange={(e) => onDescriptionChange(e.target.value)}
-            onKeyDown={(e) => {
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => onDescriptionChange(e.target.value)}
+            onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
               if (e.key === 'Enter') {
                 e.preventDefault();
                 (e.target as HTMLInputElement).blur();
+                commitDescription();
                 if (timerRunning) {
                   onDescriptionCommit();
                 } else {
@@ -220,7 +359,10 @@ export function LiquidGlassLayout({
               }
             }}
             onFocus={() => setInputFocused(true)}
-            onBlur={() => setInputFocused(false)}
+            onBlur={() => {
+              setInputFocused(false);
+              commitDescription();
+            }}
           />
         </div>
 
@@ -234,7 +376,7 @@ export function LiquidGlassLayout({
         >
           <motion.span
             ref={pillRef}
-            className={`flex cursor-pointer items-center text-muted-foreground transition-colors hover:text-foreground ${pillPop ? 'pill-pop' : ''}`}
+            className={`flex cursor-pointer items-center text-muted-foreground transition-colors hover:text-foreground ${pillAnim}`}
             style={{
               gap: scaled(5),
               fontSize: scaled(11),
@@ -243,7 +385,7 @@ export function LiquidGlassLayout({
               padding: `${scaled(2)} ${scaled(8)}`,
               margin: `0 ${scaled(-8)}`,
             }}
-            animate={pickerOpen ? breathingBorderAnimation : { borderColor: 'transparent' }}
+            animate={pickerOpen ? breathingBorder(state) : { borderColor: 'transparent' }}
             transition={pickerOpen ? breathingBorderTransition : { duration: 0.2 }}
             onClick={handlePillClick}
           >
@@ -294,10 +436,82 @@ export function LiquidGlassLayout({
           </AnimatePresence>
         </div>
 
-        {/* LiquidEdge — drifting teal blobs when timer is running */}
-        <AnimatePresence>
-          {timerRunning && !isIncomplete && (
+        {/* Full-width button — wide variant */}
+        {timerStyle === 'liquid-glass-wide' && (
+          <motion.button
+            className="relative mt-1 flex w-full cursor-pointer items-center justify-center overflow-hidden font-brand font-semibold uppercase"
+            style={{
+              height: scaled(34),
+              borderRadius: scaled(10),
+              gap: scaled(6),
+              fontSize: scaled(11),
+              letterSpacing: '0.5px',
+              backdropFilter: 'blur(8px)',
+              border: '1px solid',
+              marginTop: scaled(8),
+            }}
+            animate={{
+              background: colors.btnBg,
+              borderColor: colors.btnBorder,
+              color: colors.btnColor,
+            }}
+            whileHover={{
+              background: colors.btnHoverBg,
+              borderColor: colors.btnHoverBorder,
+            }}
+            whileTap={{ scale: 0.97 }}
+            onClick={handleButtonClick}
+            transition={{ type: 'spring', damping: 15, stiffness: 300 }}
+          >
+            {ripples.map((r) => (
+              <motion.span
+                key={r.id}
+                className="pointer-events-none absolute rounded-full"
+                style={{ width: 60, height: 60, left: r.x - 30, top: r.y - 30, background: r.color }}
+                initial={{ scale: 0, opacity: 0.4 }}
+                animate={{ scale: 4, opacity: 0 }}
+                transition={{ duration: 0.5, ease: 'easeOut' }}
+              />
+            ))}
+            <AnimatePresence mode="wait" initial={false}>
+              {timerRunning ? (
+                <motion.span
+                  key="stop"
+                  className="relative z-[1] flex items-center"
+                  style={{ gap: scaled(6) }}
+                  initial={{ opacity: 0, scale: 0.7 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.7 }}
+                  transition={{ duration: 0.15 }}
+                >
+                  <Square style={{ width: scaled(12), height: scaled(12) }} fill="currentColor" />
+                  Stop Timer
+                </motion.span>
+              ) : (
+                <motion.span
+                  key="start"
+                  className="relative z-[1] flex items-center"
+                  style={{ gap: scaled(6) }}
+                  initial={{ opacity: 0, scale: 0.7 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.7 }}
+                  transition={{ duration: 0.15 }}
+                >
+                  <Play style={{ width: scaled(12), height: scaled(12) }} fill="currentColor" />
+                  Start Timer
+                </motion.span>
+              )}
+            </AnimatePresence>
+          </motion.button>
+        )}
+
+        </div>{/* end content wrapper */}
+
+        {/* Bottom edge effects */}
+        <AnimatePresence mode="wait">
+          {state === 'running' && (
             <motion.div
+              key="liquid-edge"
               className="pointer-events-none absolute bottom-0 left-0 right-0 overflow-hidden"
               style={{
                 height: 3,
@@ -306,6 +520,7 @@ export function LiquidGlassLayout({
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
+              transition={{ duration: 0.6 }}
             >
               {/* Subtle glow underneath */}
               <div
@@ -334,33 +549,31 @@ export function LiquidGlassLayout({
               />
             </motion.div>
           )}
-        </AnimatePresence>
-
-        {/* Incomplete progress line */}
-        <AnimatePresence>
-          {isIncomplete && (
+          {state === 'incomplete' && (
             <motion.div
+              key="incomplete-edge"
+              className="pointer-events-none absolute bottom-0 left-0 right-0 overflow-hidden"
+              style={{
+                height: 2,
+                background: 'hsl(var(--border) / 0.08)',
+                borderRadius: `0 0 ${scaled(14)}px ${scaled(14)}px`,
+              }}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="absolute bottom-0 left-0 right-0 overflow-hidden"
-              style={{
-                height: 2,
-                background: 'hsl(var(--border) / 0.1)',
-                borderRadius: `0 0 ${scaled(14)}px ${scaled(14)}px`,
-              }}
+              transition={{ duration: 0.6 }}
             >
               <motion.div
-                className="absolute h-full"
+                className="absolute top-0 h-full"
                 style={{
-                  width: '30%',
-                  background: 'hsl(38 92% 50% / 0.7)',
+                  width: '40%',
+                  background: 'radial-gradient(ellipse at center, hsl(38 92% 50% / 0.6) 0%, transparent 70%)',
                 }}
-                animate={{ left: ['-30%', '100%'] }}
+                animate={{ left: ['-40%', '100%'] }}
                 transition={{
-                  duration: 1.5,
+                  duration: 2.5,
                   repeat: Infinity,
-                  ease: 'easeInOut',
+                  ease: [0.4, 0, 0.6, 1],
                 }}
               />
             </motion.div>

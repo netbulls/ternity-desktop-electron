@@ -10,7 +10,7 @@ import { PopupHeader } from './popup-header';
 import { StatusBanner, type StatusState } from './status-banner';
 import { SettingsContent } from './settings-content';
 import { LoginView } from './login-view';
-import { useLayout } from '@/providers/layout-provider';
+import { useLayout, type TimerStyleId } from '@/providers/layout-provider';
 import { LiquidGlassLayout } from './layouts/liquid-glass-layout';
 import { LayeredLayout } from './layouts/layered-layout';
 import { HeroLayout } from './layouts/hero-layout';
@@ -40,6 +40,7 @@ export interface LayoutProps {
   stats: Stats;
   projects: ProjectOption[];
   webAppUrl: string;
+  timerStyle: TimerStyleId;
 }
 
 export function formatTimer(seconds: number): string {
@@ -85,7 +86,7 @@ function useElapsedSeconds(startedAt: string | null, running: boolean, offset: n
 
 function TimerView({ onSettingsClick }: { onSettingsClick: () => void }) {
   const data = useData();
-  const { layout } = useLayout();
+  const { layout, timerStyle } = useLayout();
   const { environmentConfig } = useAuth();
   const [selectedProject, setSelectedProject] = useState<ProjectOption | null>(null);
   const [description, setDescription] = useState('');
@@ -264,6 +265,7 @@ function TimerView({ onSettingsClick }: { onSettingsClick: () => void }) {
     stats: data.stats,
     projects: data.projects,
     webAppUrl: environmentConfig.webAppUrl,
+    timerStyle: layout === 'liquid-glass' ? timerStyle : 'default',
   };
 
   const LayoutComponent =

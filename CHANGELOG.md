@@ -3,6 +3,8 @@
 ## [Unreleased]
 
 ### Added
+- Wide timer variant for Liquid Glass layout — full-width Start/Stop button below project pill
+- Timer Style setting in Appearance — choose between Default and Liquid Glass Wide (only available for Liquid Glass layout)
 - Redesign login view — polished layout with full-width sign-in button, env selector moved to footer
 - Branded browser pages for sign-in success, sign-in error, and sign-out with Ternity logo and Oxanium font
 - Browser sign-out flow — sign out opens branded page with optional "Sign out of browser" to end Logto session
