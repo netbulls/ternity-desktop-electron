@@ -147,7 +147,7 @@ for VM_HOST in "$LINUX_ARM64_HOST" "$LINUX_X64_HOST"; do
   # SCP version-injected package.json + electron-builder config
   scp package.json "${VM_HOST}:ternity-desktop/package.json"
   scp electron-builder.yml "${VM_HOST}:ternity-desktop/electron-builder.yml"
-  ssh "$VM_HOST" "${NVM_PREFIX} cd ${LINUX_PROJECT_DIR} && pnpm exec electron-vite build && pnpm electron-builder --linux rpm --config electron-builder.yml"
+  ssh "$VM_HOST" "${NVM_PREFIX} cd ${LINUX_PROJECT_DIR} && pnpm exec electron-vite build && USE_SYSTEM_FPM=true pnpm electron-builder --linux rpm --config electron-builder.yml"
   # Copy RPM artifacts back
   for file in $(ssh "$VM_HOST" "${NVM_PREFIX} ls ${LINUX_PROJECT_DIR}/dist/Ternity-Electron-*.rpm 2>/dev/null"); do
     BASENAME=$(basename "$file")
