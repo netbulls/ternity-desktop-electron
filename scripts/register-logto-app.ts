@@ -16,6 +16,7 @@ const ENVIRONMENTS = {
 } as const;
 
 const REDIRECT_URI = 'http://127.0.0.1:21987/callback';
+const POST_LOGOUT_REDIRECT_URI = 'http://127.0.0.1:21987/signed-out-complete';
 
 type EnvId = keyof typeof ENVIRONMENTS;
 
@@ -54,7 +55,7 @@ async function createNativeApp(logtoEndpoint: string, token: string) {
       type: 'Native',
       oidcClientMetadata: {
         redirectUris: [REDIRECT_URI],
-        postLogoutRedirectUris: [],
+        postLogoutRedirectUris: [POST_LOGOUT_REDIRECT_URI],
       },
     }),
   });

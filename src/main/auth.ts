@@ -165,26 +165,77 @@ function decodeIdToken(idToken: string): AuthUser | null {
 const CALLBACK_PORT = 21987;
 const CALLBACK_TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes
 
+const BRAND_LOGO_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 120" fill="none" width="48" height="58">
+  <path d="M18 5 L82 5 L62 48 L82 95 L18 95 L38 48Z" stroke="#00D4AA" stroke-width="5" fill="none" stroke-linejoin="round"/>
+  <circle cx="50" cy="32" r="6" fill="#00D4AA"/><circle cx="49" cy="52" r="7.5" fill="#00D4AA"/>
+  <circle cx="54" cy="67" r="5.5" fill="#00D4AA"/><circle cx="44" cy="77" r="7" fill="#00D4AA"/>
+  <circle cx="56" cy="83" r="6" fill="#00D4AA"/>
+</svg>`;
+
+const BRAND_STYLES = `
+  @import url('https://fonts.googleapis.com/css2?family=Oxanium:wght@400;600;700&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Oxanium', sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #0a0a0a; color: #e5e5e5; }
+  .card { text-align: center; padding: 2.5rem; max-width: 360px; }
+  .logo { margin-bottom: 1.25rem; opacity: 0.5; }
+  .brand { font-size: 0.75rem; font-weight: 600; letter-spacing: 5px; text-transform: uppercase; color: #fff; margin-bottom: 1.5rem; }
+  h1 { font-size: 1.25rem; font-weight: 600; margin-bottom: 0.5rem; }
+  p { color: rgba(255,255,255,0.5); font-size: 0.85rem; line-height: 1.5; }
+  .divider { width: 100%; height: 1px; background: #141414; margin: 1.5rem 0; }
+  .btn { display: inline-block; padding: 0.6rem 1.5rem; border-radius: 0.5rem; font-family: 'Oxanium', sans-serif; font-size: 0.85rem; font-weight: 600; cursor: pointer; text-decoration: none; transition: opacity 0.15s; border: none; }
+  .btn:hover { opacity: 0.85; }
+  .btn-primary { background: #00D4AA; color: #0a0a0a; }
+  .btn-ghost { background: none; color: rgba(255,255,255,0.4); font-size: 0.75rem; padding: 0.4rem 1rem; }
+  .btn-ghost:hover { color: rgba(255,255,255,0.7); }
+`;
+
 const SUCCESS_HTML = `<!DOCTYPE html>
 <html>
-<head><title>Signed in</title><style>
-  body { font-family: system-ui, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #0a0a0a; color: #e5e5e5; }
-  .card { text-align: center; padding: 2rem; }
-  h1 { color: #2dd4bf; font-size: 1.5rem; margin-bottom: 0.5rem; }
-  p { color: #a3a3a3; }
-</style></head>
-<body><div class="card"><h1>Signed in!</h1><p>You can close this tab and return to Ternity.</p></div></body>
+<head><title>Signed in — Ternity</title><style>${BRAND_STYLES}</style></head>
+<body><div class="card">
+  <div class="logo">${BRAND_LOGO_SVG}</div>
+  <div class="brand">Ternity</div>
+  <h1 style="color: #00D4AA;">Signed in</h1>
+  <p>You can close this tab and return to Ternity.</p>
+</div></body>
 </html>`;
 
 const ERROR_HTML = (msg: string) => `<!DOCTYPE html>
 <html>
-<head><title>Sign in failed</title><style>
-  body { font-family: system-ui, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #0a0a0a; color: #e5e5e5; }
-  .card { text-align: center; padding: 2rem; }
-  h1 { color: #ef4444; font-size: 1.5rem; margin-bottom: 0.5rem; }
-  p { color: #a3a3a3; }
-</style></head>
-<body><div class="card"><h1>Sign in failed</h1><p>${msg}</p></div></body>
+<head><title>Sign in failed — Ternity</title><style>${BRAND_STYLES}</style></head>
+<body><div class="card">
+  <div class="logo">${BRAND_LOGO_SVG}</div>
+  <div class="brand">Ternity</div>
+  <h1 style="color: #ef4444;">Sign in failed</h1>
+  <p>${msg}</p>
+</div></body>
+</html>`;
+
+const SIGNOUT_HTML = (endSessionUrl: string | null) => `<!DOCTYPE html>
+<html>
+<head><title>Signed out — Ternity</title><style>${BRAND_STYLES}</style></head>
+<body><div class="card">
+  <div class="logo">${BRAND_LOGO_SVG}</div>
+  <div class="brand">Ternity</div>
+  <h1 style="color: #00D4AA;">Signed out</h1>
+  <p>You've been signed out of Ternity Desktop.</p>
+  ${endSessionUrl ? `
+  <div class="divider"></div>
+  <p style="margin-bottom: 1rem;">Still signed in to the browser?</p>
+  <a href="${endSessionUrl}" class="btn btn-primary">Sign out of browser</a>
+  ` : ''}
+</div></body>
+</html>`;
+
+const SIGNOUT_COMPLETE_HTML = `<!DOCTYPE html>
+<html>
+<head><title>Signed out — Ternity</title><style>${BRAND_STYLES}</style></head>
+<body><div class="card">
+  <div class="logo">${BRAND_LOGO_SVG}</div>
+  <div class="brand">Ternity</div>
+  <h1 style="color: #00D4AA;">Fully signed out</h1>
+  <p>You've been signed out of the desktop app and the browser. You can close this tab.</p>
+</div></body>
 </html>`;
 
 function startCallbackServer(): Promise<{ code: string; close: () => void }> {
@@ -385,10 +436,17 @@ async function refreshTokens(
 
 let activeServer: Server | null = null;
 let activeSignIn: Promise<SignInResult> | null = null;
+let signOutServer: Server | null = null;
 
 export async function signIn(envId: EnvironmentId): Promise<SignInResult> {
   if (activeSignIn) {
     return { success: false, error: 'Sign-in already in progress' };
+  }
+
+  // Close sign-out server if still running (shares the same port)
+  if (signOutServer) {
+    signOutServer.close();
+    signOutServer = null;
   }
 
   const env = ENVIRONMENTS[envId];
@@ -420,7 +478,7 @@ export async function signIn(envId: EnvironmentId): Promise<SignInResult> {
         code_challenge: codeChallenge,
         code_challenge_method: 'S256',
         resource: LOGTO_API_RESOURCE,
-        prompt: 'consent',
+        prompt: 'login consent',
       });
 
       const authUrl = `${oidc.authorization_endpoint}?${authParams.toString()}`;
@@ -472,9 +530,54 @@ export function abortSignIn(): void {
   }
 }
 
-export async function signOut(envId: EnvironmentId): Promise<void> {
+export async function signOut(envId: EnvironmentId): Promise<{ signOutPageUrl: string }> {
+  const tokens = loadTokens(envId);
   clearTokens(envId);
-  // No browser redirect needed — prompt: 'login' on sign-in forces a fresh login form
+
+  const postLogoutUri = `http://127.0.0.1:${CALLBACK_PORT}/signed-out-complete`;
+
+  // Build end_session URL with post_logout_redirect_uri back to our server
+  let endSessionUrl: string | null = null;
+  try {
+    const env = ENVIRONMENTS[envId];
+    const oidc = await discoverOidc(env.logtoEndpoint);
+    if (oidc.end_session_endpoint) {
+      const params = new URLSearchParams({
+        client_id: env.logtoAppId,
+        post_logout_redirect_uri: postLogoutUri,
+      });
+      if (tokens?.id_token) params.set('id_token_hint', tokens.id_token);
+      endSessionUrl = `${oidc.end_session_endpoint}?${params.toString()}`;
+    }
+  } catch {
+    // OIDC discovery failed — still show sign-out page without browser button
+  }
+
+  // Start a localhost server to serve branded sign-out pages:
+  // /signed-out         → initial page with "Sign out of browser" button
+  // /signed-out-complete → shown after Logto redirects back (post_logout_redirect_uri)
+  const initialHtml = SIGNOUT_HTML(endSessionUrl);
+  const port = CALLBACK_PORT;
+  const url = await new Promise<string>((resolve) => {
+    const server = createServer((req, res) => {
+      const pathname = new URL(req.url ?? '/', `http://127.0.0.1:${port}`).pathname;
+      res.writeHead(200, { 'Content-Type': 'text/html' });
+      if (pathname === '/signed-out-complete') {
+        res.end(SIGNOUT_COMPLETE_HTML);
+      } else {
+        res.end(initialHtml);
+      }
+    });
+    server.listen(port, '127.0.0.1', () => {
+      resolve(`http://127.0.0.1:${port}/signed-out`);
+    });
+    // Track so signIn() can close it if user signs in quickly
+    signOutServer = server;
+    // Auto-close after 60s — allow time for the Logto redirect round-trip
+    setTimeout(() => { server.close(); signOutServer = null; }, 60_000);
+  });
+
+  return { signOutPageUrl: url };
 }
 
 export function getAuthState(envId: EnvironmentId): AuthState {

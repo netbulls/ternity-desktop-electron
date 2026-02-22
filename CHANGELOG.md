@@ -3,6 +3,11 @@
 ## [Unreleased]
 
 ### Added
+- Redesign login view — polished layout with full-width sign-in button, env selector moved to footer
+- Branded browser pages for sign-in success, sign-in error, and sign-out with Ternity logo and Oxanium font
+- Browser sign-out flow — sign out opens branded page with optional "Sign out of browser" to end Logto session
+- Auto-show popup after successful OAuth sign-in
+- Hide popup during sign-in and sign-out flows to avoid overlaying browser
 - Header branding — "Electron" suffix after TERNITY, environment warning strip for local/dev
 - Windows installer code signing — shows "Open Source Developer, Przemyslaw Rudzki" instead of "Unknown Publisher"
 - Frosted glass day headers and footer overlay with gradual fade effect
@@ -17,6 +22,7 @@
 - Fix Windows window drag — title bar click dismissed the window instead of allowing move
 
 ### Changed
+- Force fresh login on every sign-in (`prompt: 'login consent'`) — no more auto-sign-in from stale browser sessions
 - Migrate to segments-based entry model — elapsed time computed from segments, durations from `totalDurationSeconds`
 
 ## [0.4.0] - 2026-02-20

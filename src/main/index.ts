@@ -431,13 +431,18 @@ app.whenReady().then(() => {
   });
 
   // IPC: auth — PKCE sign-in flow
-  ipcMain.handle('auth:sign-in', (_event, envId: string) => {
-    return signIn(envId as EnvironmentId);
+  ipcMain.handle('auth:sign-in', async (_event, envId: string) => {
+    popup?.hide();
+    const result = await signIn(envId as EnvironmentId);
+    if (result.success) showPopup();
+    return result;
   });
 
-  // IPC: auth — sign out (clear tokens)
-  ipcMain.handle('auth:sign-out', (_event, envId: string) => {
-    signOut(envId as EnvironmentId);
+  // IPC: auth — sign out (clear tokens + open branded sign-out page in browser)
+  ipcMain.handle('auth:sign-out', async (_event, envId: string) => {
+    const { signOutPageUrl } = await signOut(envId as EnvironmentId);
+    popup?.hide();
+    await shell.openExternal(signOutPageUrl);
   });
 
   // IPC: auth — check stored auth state
