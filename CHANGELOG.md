@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-02-22
+
 ### Added
 - Wide timer variant for Liquid Glass layout — full-width Start/Stop button below project pill
 - Timer Style setting in Appearance — choose between Default and Liquid Glass Wide (only available for Liquid Glass layout)
@@ -21,6 +23,7 @@
 - Glassy frosted project picker with blur and inner highlight
 - Mutation error banner with retry action for failed API calls
 - Error boundary with recovery UI — prevents white screen on unexpected crashes
+- RPM packages for Linux (Fedora, RHEL)
 
 ### Fixed
 - Fix Windows window drag — title bar click dismissed the window instead of allowing move
