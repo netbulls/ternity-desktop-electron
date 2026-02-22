@@ -180,6 +180,15 @@ export function EntriesList({
       }
     }
 
+    // Sort entries within each day by createdAt (newest first)
+    for (const day of copy) {
+      day.entries.sort((a, b) => {
+        const aTime = new Date(a.createdAt).getTime();
+        const bTime = new Date(b.createdAt).getTime();
+        return bTime - aTime;
+      });
+    }
+
     return copy;
   })();
 
@@ -385,7 +394,7 @@ function EntryRow({
 
       {/* Incomplete entry indicator — amber left border */}
       <AnimatePresence>
-        {!isRunning && (noProject || noDesc) && (
+        {(noProject || noDesc) && (
           <motion.div
             className="absolute left-0 top-0 bottom-0 overflow-hidden"
             style={{ width: 2, borderRadius: `${scaled(2)}px` }}
