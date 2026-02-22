@@ -139,15 +139,17 @@ done
 # --- Linux RPMs (built on Linux VMs via SSH — rpmbuild not available on macOS) ---
 echo "==> [6/8] Building Linux RPMs (arm64 via SSH to ${LINUX_ARM64_HOST}, x64 via SSH to ${LINUX_X64_HOST})..."
 
-for VM_HOST in "$LINUX_ARM64_HOST" "$LINUX_X64_HOST"; do
+for VM_ENTRY in "arm64:$LINUX_ARM64_HOST" "x64:$LINUX_X64_HOST"; do
+  VM_ARCH="${VM_ENTRY%%:*}"
+  VM_HOST="${VM_ENTRY#*:}"
   # nvm needs sourcing for non-interactive SSH on some VMs
   NVM_PREFIX="source ~/.nvm/nvm.sh 2>/dev/null;"
-  echo "  Building RPM on ${VM_HOST}..."
+  echo "  Building RPM (${VM_ARCH}) on ${VM_HOST}..."
   ssh "$VM_HOST" "${NVM_PREFIX} cd ${LINUX_PROJECT_DIR} && git checkout -- . && git pull origin main --ff-only && rm -rf dist/ && pnpm install --frozen-lockfile"
   # SCP version-injected package.json + electron-builder config
   scp package.json "${VM_HOST}:ternity-desktop/package.json"
   scp electron-builder.yml "${VM_HOST}:ternity-desktop/electron-builder.yml"
-  ssh "$VM_HOST" "${NVM_PREFIX} cd ${LINUX_PROJECT_DIR} && pnpm exec electron-vite build && USE_SYSTEM_FPM=true pnpm electron-builder --linux rpm --config electron-builder.yml"
+  ssh "$VM_HOST" "${NVM_PREFIX} cd ${LINUX_PROJECT_DIR} && pnpm exec electron-vite build && USE_SYSTEM_FPM=true pnpm electron-builder --linux rpm --${VM_ARCH} --config electron-builder.yml"
   # Copy RPM artifacts back
   for file in $(ssh "$VM_HOST" "${NVM_PREFIX} ls ${LINUX_PROJECT_DIR}/dist/Ternity-Electron-*.rpm 2>/dev/null"); do
     BASENAME=$(basename "$file")
