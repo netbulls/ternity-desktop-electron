@@ -12,6 +12,9 @@
 - Mutation error banner with retry action for failed API calls
 - Error boundary with recovery UI — prevents white screen on unexpected crashes
 
+### Fixed
+- Fix Windows window drag — title bar click dismissed the window instead of allowing move
+
 ### Changed
 - Migrate to segments-based entry model — elapsed time computed from segments, durations from `totalDurationSeconds`
 

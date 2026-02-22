@@ -124,8 +124,20 @@ function createPopup(): BrowserWindow {
   // Blur handling — platform-specific
   let blurTimer: ReturnType<typeof setTimeout> | null = null;
 
+  // Windows: suppress blur→hide while the user is dragging the window.
+  // Native drag fires blur before the move completes; without this guard
+  // the 100ms timer hides the window mid-drag.
+  let isDragging = false;
+  win.on('will-move', () => {
+    isDragging = true;
+  });
+  win.on('moved', () => {
+    isDragging = false;
+  });
+
   win.on('blur', () => {
     if (Date.now() < blurSuppressedUntil) return;
+    if (isDragging) return;
     if (blurTimer) clearTimeout(blurTimer);
 
     if (process.platform === 'darwin') {
