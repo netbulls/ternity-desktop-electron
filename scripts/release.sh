@@ -196,6 +196,9 @@ PID_C=$!
 PID_D=$!
 
 # --- Group A: macOS + Linux deb/AppImage (foreground) ---
+echo "[A] Building renderer + main + preload..."
+pnpm exec electron-vite build
+
 echo "[A] Building macOS arm64..."
 pnpm electron-builder --config electron-builder.yml --mac --arm64
 

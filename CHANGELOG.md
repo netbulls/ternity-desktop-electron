@@ -4,6 +4,7 @@
 
 ### Fixed
 - Sticky day headers overlay instead of pushing previous header out when scrolling
+- Version number not injected in release builds — users saw stale version from last dev session
 
 ## [0.5.0] - 2026-02-22
 
