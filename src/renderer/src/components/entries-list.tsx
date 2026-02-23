@@ -237,7 +237,7 @@ export function EntriesList({
 
 function DayHeader({ label, duration }: { label: string; duration: string }) {
   return (
-    <div className="sticky top-0" style={{ zIndex: 50 }}>
+    <div className="sticky top-0" style={{ zIndex: 50, background: 'hsl(var(--card))' }}>
       {/* Frosted layer with gradual mask */}
       <div
         className="absolute inset-0"

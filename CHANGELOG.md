@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Fixed
+- Sticky day headers overlay instead of pushing previous header out when scrolling
+
 ## [0.5.0] - 2026-02-22
 
 ### Added
