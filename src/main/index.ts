@@ -22,6 +22,7 @@ import {
   abortSignIn,
 } from './auth';
 import { ENVIRONMENTS, type EnvironmentId } from './environments';
+import { initDemo, resetDemo, handleDemoRequest } from './demo/mock-server';
 
 const log = createLogger('app');
 const apiLog = createLogger('api');
@@ -29,6 +30,7 @@ const isLinux = process.platform === 'linux';
 
 let tray: Tray | null = null;
 let popup: BrowserWindow | null = null;
+let isDemoMode = false;
 
 // Remembered window position (cross-platform; also serves as Linux fallback since tray.getBounds() returns zeros)
 let savedPosition: { x: number; y: number } | null = null;
@@ -174,9 +176,13 @@ function createPopup(): BrowserWindow {
     }
   });
 
-  // Esc to close
+  // Esc to close (suppressed when renderer has a modal overlay like switch confirmation)
+  let suppressEscape = false;
+  ipcMain.on('set-suppress-escape', (_event, suppressed: boolean) => {
+    suppressEscape = suppressed;
+  });
   win.webContents.on('before-input-event', (_event, input) => {
-    if (input.key === 'Escape' && input.type === 'keyDown') {
+    if (input.key === 'Escape' && input.type === 'keyDown' && !suppressEscape) {
       win.hide();
     }
   });
@@ -438,8 +444,21 @@ app.whenReady().then(() => {
     return result;
   });
 
+  // IPC: auth — demo sign-in (activate mock server)
+  ipcMain.handle('auth:sign-in-demo', () => {
+    log.info('Demo mode activated');
+    isDemoMode = true;
+    initDemo();
+  });
+
   // IPC: auth — sign out (clear tokens + open branded sign-out page in browser)
   ipcMain.handle('auth:sign-out', async (_event, envId: string) => {
+    if (isDemoMode) {
+      log.info('Demo mode deactivated');
+      isDemoMode = false;
+      resetDemo();
+      return;
+    }
     const { signOutPageUrl } = await signOut(envId as EnvironmentId);
     popup?.hide();
     await shell.openExternal(signOutPageUrl);
@@ -511,6 +530,12 @@ app.whenReady().then(() => {
   ipcMain.handle(
     'api:fetch',
     async (_event, envId: string, path: string, options?: { method?: string; body?: unknown }) => {
+      // Demo mode: route to in-memory mock server
+      if (isDemoMode) {
+        apiLog.debug(`[demo] ${options?.method ?? 'GET'} ${path}`);
+        return handleDemoRequest(path, options);
+      }
+
       const token = await getAccessToken(envId as EnvironmentId);
       if (!token) {
         apiLog.warn(`[${envId}] No access token for ${path}`);

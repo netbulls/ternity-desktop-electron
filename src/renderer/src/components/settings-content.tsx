@@ -10,6 +10,7 @@ import { useAuth } from '@/providers/auth-provider';
 import { useOptionalData, getCachedProjects, getCachedDefaultProjectId, setCachedDefaultProjectId } from '@/providers/data-provider';
 import { ProjectPicker } from './project-picker';
 import type { ProjectOption } from '@/lib/api-types';
+import { getConfirmTimerSwitch, setConfirmTimerSwitch, schedulePatch, getLocalPreferences } from '@/lib/preferences-sync';
 
 export function SettingsContent({
   onClose,
@@ -23,16 +24,38 @@ export function SettingsContent({
   const data = useOptionalData();
   const [startAtLogin, setStartAtLogin] = useState(false);
   const [rememberPosition, setRememberPosition] = useState(false);
-  const [defaultProjectId, setDefaultProjectId] = useState<string | null>(getCachedDefaultProjectId);
+  const [defaultProjectId, setDefaultProjectId] = useState<string | null>(
+    () => getLocalPreferences().defaultProjectId ?? getCachedDefaultProjectId(),
+  );
   const [projects, setProjects] = useState<ProjectOption[]>(getCachedProjects);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [pickerAnchor, setPickerAnchor] = useState<{ top: number; bottom: number; left: number; right: number } | null>(null);
+  const [confirmSwitch, setConfirmSwitch] = useState(getConfirmTimerSwitch);
   const [pillPop, setPillPop] = useState(false);
   const projectTriggerRef = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
     window.electronAPI?.getLoginItem().then(setStartAtLogin);
     window.electronAPI?.getRememberPosition().then(setRememberPosition);
+    window.dispatchEvent(new Event('settings-opened'));
+  }, []);
+
+  // Sync confirmTimerSwitch when changed externally (e.g. "Don't ask again" in overlay, or server sync)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      setConfirmSwitch((e as CustomEvent<boolean>).detail);
+    };
+    window.addEventListener('confirm-timer-switch-changed', handler);
+    return () => window.removeEventListener('confirm-timer-switch-changed', handler);
+  }, []);
+
+  // Sync defaultProjectId when changed externally (e.g. server sync on settings open)
+  useEffect(() => {
+    const handler = (e: Event) => {
+      setDefaultProjectId((e as CustomEvent<string | null>).detail);
+    };
+    window.addEventListener('default-project-changed', handler);
+    return () => window.removeEventListener('default-project-changed', handler);
   }, []);
 
   const toggleStartAtLogin = () => {
@@ -47,11 +70,18 @@ export function SettingsContent({
     window.electronAPI?.setRememberPosition(next);
   };
 
+  const toggleConfirmSwitch = () => {
+    const next = !confirmSwitch;
+    setConfirmSwitch(next);
+    setConfirmTimerSwitch(next);
+  };
+
   const handleDefaultProjectSelect = (project: ProjectOption | null) => {
     const id = project?.id ?? null;
     setDefaultProjectId(id);
     setCachedDefaultProjectId(id);
     window.electronAPI?.setDefaultProject(id);
+    schedulePatch({ defaultProjectId: id });
     window.dispatchEvent(
       new CustomEvent('default-project-changed', { detail: project?.id ?? null }),
     );
@@ -103,7 +133,11 @@ export function SettingsContent({
             className="cursor-pointer rounded-md border-none bg-transparent text-right text-foreground outline-none"
             style={{ fontSize: scaled(10), padding: `${scaled(2)} 0` }}
             value={theme}
-            onChange={(e) => setTheme(e.target.value as ThemeId)}
+            onChange={(e) => {
+              const v = e.target.value as ThemeId;
+              setTheme(v);
+              schedulePatch({ theme: v });
+            }}
           >
             {THEMES.map((t) => (
               <option key={t.id} value={t.id} className="bg-card text-foreground">
@@ -164,7 +198,11 @@ export function SettingsContent({
             className="cursor-pointer rounded-md border-none bg-transparent text-right text-foreground outline-none"
             style={{ fontSize: scaled(10), padding: `${scaled(2)} 0` }}
             value={scale}
-            onChange={(e) => setScale(Number(e.target.value))}
+            onChange={(e) => {
+              const v = Number(e.target.value);
+              setScale(v);
+              schedulePatch({ scale: v });
+            }}
           >
             {SCALES.map((s) => (
               <option key={s.label} value={s.value} className="bg-card text-foreground">
@@ -201,7 +239,7 @@ export function SettingsContent({
 
         {/* Remember Position */}
         <div
-          className="flex cursor-pointer items-center justify-between"
+          className="flex cursor-pointer items-center justify-between border-b border-border/50"
           style={{ padding: `${scaled(7)} ${scaled(10)}` }}
           onClick={toggleRememberPosition}
         >
@@ -219,6 +257,31 @@ export function SettingsContent({
                 height: scaled(12),
                 top: scaled(2),
                 left: rememberPosition ? scaled(14) : scaled(2),
+              }}
+            />
+          </span>
+        </div>
+
+        {/* Confirm Timer Switch */}
+        <div
+          className="flex cursor-pointer items-center justify-between"
+          style={{ padding: `${scaled(7)} ${scaled(10)}` }}
+          onClick={toggleConfirmSwitch}
+        >
+          <span className="text-muted-foreground">Confirm Timer Switch</span>
+          <span
+            className={`rounded-full transition-colors ${
+              confirmSwitch ? 'bg-primary' : 'bg-muted-foreground/30'
+            }`}
+            style={{ width: scaled(28), height: scaled(16), position: 'relative' }}
+          >
+            <span
+              className="absolute rounded-full bg-white transition-all"
+              style={{
+                width: scaled(12),
+                height: scaled(12),
+                top: scaled(2),
+                left: confirmSwitch ? scaled(14) : scaled(2),
               }}
             />
           </span>

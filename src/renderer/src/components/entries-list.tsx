@@ -237,7 +237,7 @@ export function EntriesList({
 
 function DayHeader({ label, duration }: { label: string; duration: string }) {
   return (
-    <div className="sticky top-0" style={{ zIndex: 50, background: 'hsl(var(--card))' }}>
+    <div className="sticky top-0" style={{ zIndex: 50 }}>
       {/* Frosted layer with gradual mask */}
       <div
         className="absolute inset-0"
@@ -589,7 +589,7 @@ function EntryRow({
             {formatDuration(entry.totalDurationSeconds)}
           </div>
           <motion.button
-            className="relative z-10 flex shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground/30 transition-all hover:bg-primary/15 hover:text-primary"
+            className="relative z-10 flex shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground/30 transition-all hover:bg-primary/15 hover:text-primary focus-visible:outline-none"
             style={{ width: scaled(22), height: scaled(22) }}
             whileTap={{ scale: 0.85 }}
             onClick={() => onResume(entry.id)}

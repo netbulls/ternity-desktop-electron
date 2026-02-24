@@ -2,9 +2,15 @@
 
 ## [Unreleased]
 
+### Added
+- Cross-device preferences sync — theme, scale, default project, and confirm timer switch sync via API with localStorage as instant cache
+- Confirm Timer Switch setting — toggle in settings to skip/show confirmation overlay when switching timers
+- "Don't ask again" checkbox in switch confirmation overlay
+
 ### Fixed
 - Sticky day headers overlay instead of pushing previous header out when scrolling
 - Version number not injected in release builds — users saw stale version from last dev session
+- Day header frosted glass effect restored (was hidden behind solid background)
 
 ## [0.5.0] - 2026-02-22
 

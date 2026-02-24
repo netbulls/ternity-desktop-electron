@@ -53,3 +53,10 @@ export interface UserProfile {
   displayName: string;
   email: string | null;
 }
+
+export interface UserPreferences {
+  theme: string;
+  scale: number;
+  confirmTimerSwitch: boolean;
+  defaultProjectId: string | null;
+}

@@ -15,6 +15,9 @@ import { LiquidGlassLayout } from './layouts/liquid-glass-layout';
 import { LayeredLayout } from './layouts/layered-layout';
 import { HeroLayout } from './layouts/hero-layout';
 import { ErrorBoundary } from './error-boundary';
+import { SwitchConfirmation } from './switch-confirmation';
+import { PreferencesSync } from './preferences-sync';
+import { getConfirmTimerSwitch, setConfirmTimerSwitch } from '@/lib/preferences-sync';
 
 // ============================================================
 // Exported types and helpers
@@ -61,7 +64,7 @@ export function formatDuration(seconds: number): string {
 // useElapsedSeconds — ticks every second while timer is running
 // ============================================================
 
-function useElapsedSeconds(startedAt: string | null, running: boolean, offset: number = 0): number {
+export function useElapsedSeconds(startedAt: string | null, running: boolean, offset: number = 0): number {
   const [elapsed, setElapsed] = useState(0);
 
   useEffect(() => {
@@ -90,6 +93,7 @@ function TimerView({ onSettingsClick }: { onSettingsClick: () => void }) {
   const { environmentConfig } = useAuth();
   const [selectedProject, setSelectedProject] = useState<ProjectOption | null>(null);
   const [description, setDescription] = useState('');
+  const [pendingResumeId, setPendingResumeId] = useState<string | null>(null);
   const statusState: StatusState = data.mutationError ? 'mutation-error' : 'none';
   const [statusDismissed, setStatusDismissed] = useState(false);
   // Reset dismissed state when a new mutation error appears
@@ -184,12 +188,46 @@ function TimerView({ onSettingsClick }: { onSettingsClick: () => void }) {
     data.stopTimer();
   };
   const handleResume = (entryId: string) => {
-    // Cancel any pending debounced update from the previous entry
+    if (data.timer.running) {
+      if (!getConfirmTimerSwitch()) {
+        // Skip confirmation — switch immediately
+        if (descriptionCommitRef.current) {
+          clearTimeout(descriptionCommitRef.current);
+          descriptionCommitRef.current = null;
+        }
+        data.resumeTimer(entryId);
+        return;
+      }
+      setPendingResumeId(entryId);
+      return;
+    }
+    // Not running — resume immediately (no confirmation needed)
     if (descriptionCommitRef.current) {
       clearTimeout(descriptionCommitRef.current);
       descriptionCommitRef.current = null;
     }
     data.resumeTimer(entryId);
+  };
+
+  const handleSwitchConfirm = () => {
+    const entryId = pendingResumeId;
+    setPendingResumeId(null);
+    if (!entryId) return;
+    if (descriptionCommitRef.current) {
+      clearTimeout(descriptionCommitRef.current);
+      descriptionCommitRef.current = null;
+    }
+    data.resumeTimer(entryId);
+  };
+
+  const handleSwitchCancel = () => {
+    setPendingResumeId(null);
+  };
+
+  const handleSwitchConfirmDontAsk = () => {
+    setConfirmTimerSwitch(false);
+    window.dispatchEvent(new CustomEvent('confirm-timer-switch-changed', { detail: false }));
+    handleSwitchConfirm();
   };
 
   // Description update — debounced API call
@@ -248,6 +286,16 @@ function TimerView({ onSettingsClick }: { onSettingsClick: () => void }) {
     return { ...entry, description };
   })();
 
+  const pendingEntryInfo = pendingResumeId
+    ? (() => {
+        for (const dg of data.entries) {
+          const entry = dg.entries.find((e) => e.id === pendingResumeId);
+          if (entry) return { entry, date: dg.date };
+        }
+        return null;
+      })()
+    : null;
+
   const layoutProps: LayoutProps = {
     timerRunning: data.timer.running,
     elapsed,
@@ -272,7 +320,7 @@ function TimerView({ onSettingsClick }: { onSettingsClick: () => void }) {
     layout === 'hero' ? HeroLayout : layout === 'layered' ? LayeredLayout : LiquidGlassLayout;
 
   return (
-    <div className="flex h-screen flex-col">
+    <div className="relative flex h-screen flex-col">
       <div className="relative shrink-0">
         <PopupHeader onSettingsClick={onSettingsClick} />
         <AnimatePresence>
@@ -290,6 +338,22 @@ function TimerView({ onSettingsClick }: { onSettingsClick: () => void }) {
         </AnimatePresence>
       </div>
       <LayoutComponent {...layoutProps} />
+      <AnimatePresence>
+        {pendingEntryInfo && effectiveEntry && data.timer.running && (
+          <SwitchConfirmation
+            key="switch-confirmation"
+            currentEntry={effectiveEntry}
+            targetEntry={pendingEntryInfo.entry}
+            targetDate={pendingEntryInfo.date}
+            startedAt={runningSegment?.startedAt ?? null}
+            timerOffset={completedDuration}
+            onConfirm={handleSwitchConfirm}
+            onCancel={handleSwitchCancel}
+            onDontAskAgain={handleSwitchConfirmDontAsk}
+          />
+        )}
+      </AnimatePresence>
+      <PreferencesSync />
     </div>
   );
 }
