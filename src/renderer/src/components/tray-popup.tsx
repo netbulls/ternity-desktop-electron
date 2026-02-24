@@ -6,6 +6,7 @@ import { useScale } from '@/providers/scale-provider';
 import { useAuth } from '@/providers/auth-provider';
 import { DataProvider, useData } from '@/providers/data-provider';
 import type { Entry, DayGroup, Stats, ProjectOption } from '@/lib/api-types';
+import type { EnvironmentId } from '@/lib/environments';
 import { PopupHeader } from './popup-header';
 import { StatusBanner, type StatusState } from './status-banner';
 import { SettingsContent } from './settings-content';
@@ -44,6 +45,7 @@ export interface LayoutProps {
   projects: ProjectOption[];
   webAppUrl: string;
   timerStyle: TimerStyleId;
+  environment: EnvironmentId;
 }
 
 export function formatTimer(seconds: number): string {
@@ -90,7 +92,7 @@ export function useElapsedSeconds(startedAt: string | null, running: boolean, of
 function TimerView({ onSettingsClick }: { onSettingsClick: () => void }) {
   const data = useData();
   const { layout, timerStyle } = useLayout();
-  const { environmentConfig } = useAuth();
+  const { environment, environmentConfig } = useAuth();
   const [selectedProject, setSelectedProject] = useState<ProjectOption | null>(null);
   const [description, setDescription] = useState('');
   const [pendingResumeId, setPendingResumeId] = useState<string | null>(null);
@@ -314,6 +316,7 @@ function TimerView({ onSettingsClick }: { onSettingsClick: () => void }) {
     projects: data.projects,
     webAppUrl: environmentConfig.webAppUrl,
     timerStyle: layout === 'liquid-glass' ? timerStyle : 'default',
+    environment,
   };
 
   const LayoutComponent =

@@ -172,13 +172,19 @@ const BRAND_LOGO_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100
   <circle cx="56" cy="83" r="6" fill="#00D4AA"/>
 </svg>`;
 
+const FAVICON_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 120"><path d="M18 5 L82 5 L62 48 L82 95 L18 95 L38 48Z" stroke="#00D4AA" stroke-width="5" fill="none" stroke-linejoin="round"/><circle cx="50" cy="32" r="6" fill="#00D4AA"/><circle cx="49" cy="52" r="7.5" fill="#00D4AA"/><circle cx="54" cy="67" r="5.5" fill="#00D4AA"/><circle cx="44" cy="77" r="7" fill="#00D4AA"/><circle cx="56" cy="83" r="6" fill="#00D4AA"/></svg>';
+const FAVICON_SVG_BUFFER = Buffer.from(FAVICON_SVG);
+
+const BRAND_HEAD = `<meta charset="utf-8"><link rel="icon" type="image/svg+xml" href="/favicon.svg">`;
+
 const BRAND_STYLES = `
   @import url('https://fonts.googleapis.com/css2?family=Oxanium:wght@400;600;700&display=swap');
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: 'Oxanium', sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #0a0a0a; color: #e5e5e5; }
   .card { text-align: center; padding: 2.5rem; max-width: 360px; }
   .logo { margin-bottom: 1.25rem; opacity: 0.5; }
-  .brand { font-size: 0.75rem; font-weight: 600; letter-spacing: 5px; text-transform: uppercase; color: #fff; margin-bottom: 1.5rem; }
+  .brand { font-size: 0.75rem; font-weight: 600; letter-spacing: 5px; text-transform: uppercase; color: #fff; margin-bottom: 1.5rem; display: flex; align-items: baseline; justify-content: center; gap: 0.5rem; }
+  .brand-sub { font-size: 0.6rem; font-weight: 400; letter-spacing: 1px; text-transform: none; color: rgba(255,255,255,0.35); }
   h1 { font-size: 1.25rem; font-weight: 600; margin-bottom: 0.5rem; }
   p { color: rgba(255,255,255,0.5); font-size: 0.85rem; line-height: 1.5; }
   .divider { width: 100%; height: 1px; background: #141414; margin: 1.5rem 0; }
@@ -191,10 +197,10 @@ const BRAND_STYLES = `
 
 const SUCCESS_HTML = `<!DOCTYPE html>
 <html>
-<head><title>Signed in — Ternity</title><style>${BRAND_STYLES}</style></head>
+<head>${BRAND_HEAD}<title>Signed in — Ternity</title><style>${BRAND_STYLES}</style></head>
 <body><div class="card">
   <div class="logo">${BRAND_LOGO_SVG}</div>
-  <div class="brand">Ternity</div>
+  <div class="brand">Ternity <span class="brand-sub">Electron</span></div>
   <h1 style="color: #00D4AA;">Signed in</h1>
   <p>You can close this tab and return to Ternity.</p>
 </div></body>
@@ -202,10 +208,10 @@ const SUCCESS_HTML = `<!DOCTYPE html>
 
 const ERROR_HTML = (msg: string) => `<!DOCTYPE html>
 <html>
-<head><title>Sign in failed — Ternity</title><style>${BRAND_STYLES}</style></head>
+<head>${BRAND_HEAD}<title>Sign in failed — Ternity</title><style>${BRAND_STYLES}</style></head>
 <body><div class="card">
   <div class="logo">${BRAND_LOGO_SVG}</div>
-  <div class="brand">Ternity</div>
+  <div class="brand">Ternity <span class="brand-sub">Electron</span></div>
   <h1 style="color: #ef4444;">Sign in failed</h1>
   <p>${msg}</p>
 </div></body>
@@ -213,10 +219,10 @@ const ERROR_HTML = (msg: string) => `<!DOCTYPE html>
 
 const SIGNOUT_HTML = (endSessionUrl: string | null) => `<!DOCTYPE html>
 <html>
-<head><title>Signed out — Ternity</title><style>${BRAND_STYLES}</style></head>
+<head>${BRAND_HEAD}<title>Signed out — Ternity</title><style>${BRAND_STYLES}</style></head>
 <body><div class="card">
   <div class="logo">${BRAND_LOGO_SVG}</div>
-  <div class="brand">Ternity</div>
+  <div class="brand">Ternity <span class="brand-sub">Electron</span></div>
   <h1 style="color: #00D4AA;">Signed out</h1>
   <p>You've been signed out of Ternity Desktop.</p>
   ${endSessionUrl ? `
@@ -229,10 +235,10 @@ const SIGNOUT_HTML = (endSessionUrl: string | null) => `<!DOCTYPE html>
 
 const SIGNOUT_COMPLETE_HTML = `<!DOCTYPE html>
 <html>
-<head><title>Signed out — Ternity</title><style>${BRAND_STYLES}</style></head>
+<head>${BRAND_HEAD}<title>Signed out — Ternity</title><style>${BRAND_STYLES}</style></head>
 <body><div class="card">
   <div class="logo">${BRAND_LOGO_SVG}</div>
-  <div class="brand">Ternity</div>
+  <div class="brand">Ternity <span class="brand-sub">Electron</span></div>
   <h1 style="color: #00D4AA;">Fully signed out</h1>
   <p>You've been signed out of the desktop app and the browser. You can close this tab.</p>
 </div></body>
@@ -258,6 +264,12 @@ function startCallbackServer(): Promise<{ code: string; close: () => void }> {
     server = createServer((req, res) => {
       const url = new URL(req.url ?? '/', `http://127.0.0.1:${CALLBACK_PORT}`);
 
+      if (url.pathname === '/favicon.svg' || url.pathname === '/favicon.ico') {
+        res.writeHead(200, { 'Content-Type': 'image/svg+xml' });
+        res.end(FAVICON_SVG_BUFFER);
+        return;
+      }
+
       if (url.pathname !== '/callback') {
         res.writeHead(404);
         res.end('Not found');
@@ -269,7 +281,7 @@ function startCallbackServer(): Promise<{ code: string; close: () => void }> {
       const errorDescription = url.searchParams.get('error_description');
 
       if (error) {
-        res.writeHead(400, { 'Content-Type': 'text/html' });
+        res.writeHead(400, { 'Content-Type': 'text/html; charset=utf-8' });
         res.end(ERROR_HTML(errorDescription ?? error));
         cleanup();
         reject(new Error(errorDescription ?? error));
@@ -277,14 +289,14 @@ function startCallbackServer(): Promise<{ code: string; close: () => void }> {
       }
 
       if (!code) {
-        res.writeHead(400, { 'Content-Type': 'text/html' });
+        res.writeHead(400, { 'Content-Type': 'text/html; charset=utf-8' });
         res.end(ERROR_HTML('No authorization code received'));
         cleanup();
         reject(new Error('No authorization code received'));
         return;
       }
 
-      res.writeHead(200, { 'Content-Type': 'text/html' });
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
       res.end(SUCCESS_HTML);
       resolve({ code, close: cleanup });
     });
@@ -561,7 +573,12 @@ export async function signOut(envId: EnvironmentId): Promise<{ signOutPageUrl: s
   const url = await new Promise<string>((resolve) => {
     const server = createServer((req, res) => {
       const pathname = new URL(req.url ?? '/', `http://127.0.0.1:${port}`).pathname;
-      res.writeHead(200, { 'Content-Type': 'text/html' });
+      if (pathname === '/favicon.svg' || pathname === '/favicon.ico') {
+        res.writeHead(200, { 'Content-Type': 'image/svg+xml' });
+        res.end(FAVICON_SVG_BUFFER);
+        return;
+      }
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
       if (pathname === '/signed-out-complete') {
         res.end(SIGNOUT_COMPLETE_HTML);
       } else {

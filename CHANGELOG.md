@@ -7,6 +7,10 @@
 - Confirm Timer Switch setting — toggle in settings to skip/show confirmation overlay when switching timers
 - "Don't ask again" checkbox in switch confirmation overlay
 
+### Changed
+- Move non-prod environment indicator from header strip to footer — shows env pill + version alongside "Open Ternity" link
+- Auth browser pages now show "Electron" label, proper favicon, and correct character encoding
+
 ### Fixed
 - Sticky day headers overlay instead of pushing previous header out when scrolling
 - Version number not injected in release builds — users saw stale version from last dev session

@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Play, Square, FolderKanban, ChevronDown, ExternalLink } from 'lucide-react';
+import type { EnvironmentId } from '@/lib/environments';
 import { scaled } from '@/lib/scaled';
 import { AnimatedDigit } from '../animated-digit';
 import { ProjectPicker } from '../project-picker';
@@ -95,6 +96,7 @@ export function LiquidGlassLayout({
   projects,
   webAppUrl,
   timerStyle,
+  environment,
 }: LayoutProps) {
   const digits = formatTimer(elapsed).split('');
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -677,9 +679,9 @@ export function LiquidGlassLayout({
                 WebkitMaskImage: 'linear-gradient(to top, black 30%, transparent 100%)',
               }}
             />
-            {/* Button — unaffected by mask */}
+            {/* Button + env info — unaffected by mask */}
             <div
-              className="relative flex items-center justify-center"
+              className={`relative flex ${environment === 'prod' ? 'items-center justify-center' : 'items-baseline justify-between'}`}
               style={{ padding: `${scaled(12)} ${scaled(14)} ${scaled(8)}` }}
             >
               <button
@@ -690,6 +692,19 @@ export function LiquidGlassLayout({
                 Open Ternity
                 <ExternalLink style={{ width: scaled(10), height: scaled(10) }} />
               </button>
+              {environment !== 'prod' && (
+                <div className="pointer-events-auto flex items-center" style={{ gap: scaled(5) }}>
+                  <span
+                    className={`font-mono font-semibold uppercase leading-none ${environment === 'local' ? 'text-amber-500 bg-amber-500/8' : 'text-blue-400 bg-blue-400/8'}`}
+                    style={{ fontSize: scaled(8), padding: `${scaled(2)} ${scaled(5)}`, borderRadius: scaled(4) }}
+                  >
+                    {environment}
+                  </span>
+                  <span className="font-mono leading-none text-muted-foreground/50" style={{ fontSize: scaled(8) }}>
+                    {__APP_VERSION__}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         </div>

@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Play, Square, FolderKanban, ChevronDown, ExternalLink } from 'lucide-react';
+import type { EnvironmentId } from '@/lib/environments';
 import { scaled } from '@/lib/scaled';
 import { AnimatedDigit } from '../animated-digit';
 import { ProjectPicker } from '../project-picker';
@@ -59,10 +60,16 @@ function StatsStrip({ stats }: { stats: Stats }) {
   );
 }
 
-function PopupFooter({ webAppUrl }: { webAppUrl: string }) {
+const ENV_PILL_STYLES = {
+  local: 'text-amber-500 bg-amber-500/8',
+  dev: 'text-blue-400 bg-blue-400/8',
+} as const;
+
+function PopupFooter({ webAppUrl, environment }: { webAppUrl: string; environment: EnvironmentId }) {
+  const isProd = environment === 'prod';
   return (
     <div
-      className="flex items-center justify-center border-t border-border"
+      className={`flex border-t border-border ${isProd ? 'items-center justify-center' : 'items-baseline justify-between'}`}
       style={{ padding: `${scaled(8)} ${scaled(16)}` }}
     >
       <button
@@ -73,6 +80,19 @@ function PopupFooter({ webAppUrl }: { webAppUrl: string }) {
         Open Ternity
         <ExternalLink style={{ width: scaled(10), height: scaled(10) }} />
       </button>
+      {!isProd && (
+        <div className="flex items-center" style={{ gap: scaled(5) }}>
+          <span
+            className={`font-mono font-semibold uppercase leading-none ${ENV_PILL_STYLES[environment]}`}
+            style={{ fontSize: scaled(8), padding: `${scaled(2)} ${scaled(5)}`, borderRadius: scaled(4) }}
+          >
+            {environment}
+          </span>
+          <span className="font-mono leading-none text-muted-foreground/50" style={{ fontSize: scaled(8) }}>
+            {__APP_VERSION__}
+          </span>
+        </div>
+      )}
     </div>
   );
 }
@@ -94,6 +114,7 @@ export function LayeredLayout({
   stats,
   projects,
   webAppUrl,
+  environment,
 }: LayoutProps) {
   const digits = formatTimer(elapsed).split('');
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -327,7 +348,7 @@ export function LayeredLayout({
         <EntriesList currentEntry={currentEntry} entries={entries} onResume={onResume} onUpdateEntry={onUpdateEntry} projects={projects} />
       </div>
       <div className="shrink-0">
-        <PopupFooter webAppUrl={webAppUrl} />
+        <PopupFooter webAppUrl={webAppUrl} environment={environment} />
       </div>
     </div>
   );
