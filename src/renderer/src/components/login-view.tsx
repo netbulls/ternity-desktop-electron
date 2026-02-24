@@ -1,5 +1,5 @@
 import { motion } from 'motion/react';
-import { LogIn, Loader2 } from 'lucide-react';
+import { LogIn, Loader2, RotateCw } from 'lucide-react';
 import { scaled } from '@/lib/scaled';
 import { ENVIRONMENT_LIST, type EnvironmentId } from '@/lib/environments';
 import { useAuth } from '@/providers/auth-provider';
@@ -105,36 +105,43 @@ export function LoginView() {
         </motion.div>
       </div>
 
-      {/* Footer — env pills + version */}
-      <div className="flex w-full flex-col items-center" style={{ gap: scaled(8) }}>
-        <div
-          className="flex items-center"
-          style={{ gap: scaled(4), WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+      {/* Footer — env pills + version + refresh */}
+      <div className="flex w-full items-end" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+        <div className="flex flex-1 flex-col items-center" style={{ gap: scaled(8) }}>
+          <div className="flex items-center" style={{ gap: scaled(4) }}>
+            {ENVIRONMENT_LIST.map((env) => {
+              const active = environment === env.id;
+              const colorClass =
+                env.id === 'local'
+                  ? active ? 'text-amber-500 bg-amber-500/8 border-amber-500/30' : 'text-muted-foreground/40 border-transparent hover:text-amber-500/60'
+                  : env.id === 'dev'
+                    ? active ? 'text-blue-400 bg-blue-400/8 border-blue-400/30' : 'text-muted-foreground/40 border-transparent hover:text-blue-400/60'
+                    : active ? 'text-primary bg-primary/8 border-primary/30' : 'text-muted-foreground/40 border-transparent hover:text-primary/60';
+              return (
+                <button
+                  key={env.id}
+                  disabled={isSigningIn}
+                  className={`rounded-full border font-mono font-semibold uppercase transition-colors ${colorClass} ${isSigningIn ? 'cursor-not-allowed' : ''}`}
+                  style={{ fontSize: scaled(8), padding: `${scaled(2)} ${scaled(10)}` }}
+                  onClick={() => setEnvironment(env.id as EnvironmentId)}
+                >
+                  {env.label}
+                </button>
+              );
+            })}
+          </div>
+          <div className="text-muted-foreground/30" style={{ fontSize: scaled(8) }}>
+            {__APP_VERSION__}
+          </div>
+        </div>
+        <button
+          className="text-muted-foreground/30 transition-colors hover:text-muted-foreground"
+          style={{ padding: scaled(4) }}
+          onClick={() => window.location.reload()}
+          title="Refresh"
         >
-          {ENVIRONMENT_LIST.map((env) => {
-            const active = environment === env.id;
-            const colorClass =
-              env.id === 'local'
-                ? active ? 'text-amber-500 bg-amber-500/8 border-amber-500/30' : 'text-muted-foreground/40 border-transparent hover:text-amber-500/60'
-                : env.id === 'dev'
-                  ? active ? 'text-blue-400 bg-blue-400/8 border-blue-400/30' : 'text-muted-foreground/40 border-transparent hover:text-blue-400/60'
-                  : active ? 'text-primary bg-primary/8 border-primary/30' : 'text-muted-foreground/40 border-transparent hover:text-primary/60';
-            return (
-              <button
-                key={env.id}
-                disabled={isSigningIn}
-                className={`rounded-full border font-mono font-semibold uppercase transition-colors ${colorClass} ${isSigningIn ? 'cursor-not-allowed' : ''}`}
-                style={{ fontSize: scaled(8), padding: `${scaled(2)} ${scaled(10)}` }}
-                onClick={() => setEnvironment(env.id as EnvironmentId)}
-              >
-                {env.label}
-              </button>
-            );
-          })}
-        </div>
-        <div className="text-muted-foreground/30" style={{ fontSize: scaled(8) }}>
-          {__APP_VERSION__}
-        </div>
+          <RotateCw style={{ width: scaled(12), height: scaled(12) }} />
+        </button>
       </div>
     </div>
   );

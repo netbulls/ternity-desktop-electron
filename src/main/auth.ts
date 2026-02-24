@@ -296,11 +296,18 @@ function startCallbackServer(): Promise<{ code: string; close: () => void }> {
 
     function cleanup() {
       clearTimeout(timeout);
+      activeAbort = null;
       if (server) {
         server.close();
         server = null;
       }
     }
+
+    // Expose abort so abortSignIn() can reject immediately
+    activeAbort = () => {
+      cleanup();
+      reject(new Error('Sign-in cancelled'));
+    };
 
     server = createServer((req, res) => {
       const url = new URL(req.url ?? '/', `http://127.0.0.1:${CALLBACK_PORT}`);
@@ -489,6 +496,7 @@ async function refreshTokens(
 
 let activeServer: Server | null = null;
 let activeSignIn: Promise<SignInResult> | null = null;
+let activeAbort: (() => void) | null = null;
 let signOutServer: Server | null = null;
 
 export async function signIn(envId: EnvironmentId): Promise<SignInResult> {
@@ -577,7 +585,9 @@ export async function signIn(envId: EnvironmentId): Promise<SignInResult> {
 }
 
 export function abortSignIn(): void {
-  if (activeServer) {
+  if (activeAbort) {
+    activeAbort();
+  } else if (activeServer) {
     activeServer.close();
     activeServer = null;
   }

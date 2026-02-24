@@ -17,6 +17,7 @@
 - Dim day headers and footer overlay — more opaque solid zone with consistent scaled fade distance
 
 ### Fixed
+- Fix sign-in getting stuck after failed or cancelled attempt — abort now immediately rejects the callback promise
 - Increase OAuth callback server timeout from 2 to 5 minutes to prevent premature timeout on slower auth flows
 - Sticky day headers overlay instead of pushing previous header out when scrolling
 - Version number not injected in release builds — users saw stale version from last dev session
