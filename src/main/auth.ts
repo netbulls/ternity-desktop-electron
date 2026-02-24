@@ -441,15 +441,27 @@ async function exchangeCode(
   }
 
   // Step 2: Use refresh token to get a resource-specific JWT access token for the API.
-  const apiTokens = await refreshTokens(tokenEndpoint, appId, initial.refresh_token);
-  log.info('API token obtained via refresh — expires_in:', apiTokens.expires_at - Math.floor(Date.now() / 1000));
+  // If this fails (e.g., slow network), fall back to initial tokens — getAccessToken()
+  // will retry the refresh later when the token is actually needed.
+  try {
+    const apiTokens = await refreshTokens(tokenEndpoint, appId, initial.refresh_token);
+    log.info('API token obtained via refresh — expires_in:', apiTokens.expires_at - Math.floor(Date.now() / 1000));
 
-  return {
-    access_token: apiTokens.access_token,
-    refresh_token: apiTokens.refresh_token ?? initial.refresh_token,
-    id_token: initial.id_token ?? apiTokens.id_token,
-    expires_at: apiTokens.expires_at,
-  };
+    return {
+      access_token: apiTokens.access_token,
+      refresh_token: apiTokens.refresh_token ?? initial.refresh_token,
+      id_token: initial.id_token ?? apiTokens.id_token,
+      expires_at: apiTokens.expires_at,
+    };
+  } catch (err) {
+    log.warn('API token refresh failed, using initial tokens:', err instanceof Error ? err.message : err);
+    return {
+      access_token: initial.access_token,
+      refresh_token: initial.refresh_token,
+      id_token: initial.id_token,
+      expires_at: Math.floor(Date.now() / 1000) + initial.expires_in,
+    };
+  }
 }
 
 async function refreshTokens(
