@@ -439,7 +439,9 @@ app.whenReady().then(() => {
   // IPC: auth — PKCE sign-in flow
   ipcMain.handle('auth:sign-in', async (_event, envId: string) => {
     popup?.hide();
-    const result = await signIn(envId as EnvironmentId);
+    const result = await signIn(envId as EnvironmentId, (data) => {
+      popup?.webContents.send('auth:progress', data);
+    });
     if (result.success) showPopup();
     return result;
   });

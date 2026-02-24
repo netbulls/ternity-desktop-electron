@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Added
+- Sign-in progress indicator — animated progress bar with step labels replaces static "Waiting for browser..." spinner during OIDC sign-in
 - Cross-device preferences sync — theme, scale, default project, and confirm timer switch sync via API with localStorage as instant cache
 - Confirm Timer Switch setting — toggle in settings to skip/show confirmation overlay when switching timers
 - "Don't ask again" checkbox in switch confirmation overlay

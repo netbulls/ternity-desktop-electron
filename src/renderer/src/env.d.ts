@@ -37,6 +37,9 @@ interface Window {
     getAuthState: (envId: string) => Promise<AuthState>;
     getAccessToken: (envId: string) => Promise<string | null>;
     cancelSignIn: () => Promise<void>;
+    onAuthProgress: (
+      callback: (data: { step: number; label: string; progress: number }) => void,
+    ) => () => void;
     apiFetch: (
       envId: string,
       path: string,

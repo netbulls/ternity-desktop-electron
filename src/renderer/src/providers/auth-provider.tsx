@@ -6,6 +6,12 @@ import {
   type EnvironmentConfig,
 } from '@/lib/environments';
 
+export interface SignInProgress {
+  step: number;
+  label: string;
+  progress: number;
+}
+
 interface AuthContextValue {
   environment: EnvironmentId;
   environmentConfig: EnvironmentConfig;
@@ -13,6 +19,7 @@ interface AuthContextValue {
   isDemo: boolean;
   isLoading: boolean;
   isSigningIn: boolean;
+  signInProgress: SignInProgress | null;
   user: AuthUser | null;
   setEnvironment: (env: EnvironmentId) => void;
   signIn: () => void;
@@ -28,6 +35,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSigningIn, setIsSigningIn] = useState(false);
+  const [signInProgress, setSignInProgress] = useState<SignInProgress | null>(null);
   const [user, setUser] = useState<AuthUser | null>(null);
 
   const environmentConfig = ENVIRONMENTS[environment];
@@ -83,6 +91,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!api) return;
 
     setIsSigningIn(true);
+    setSignInProgress({ step: 0, label: 'Starting...', progress: 0 });
+
+    const cleanup = api.onAuthProgress((data) => setSignInProgress(data));
 
     api
       .signIn(environment)
@@ -95,7 +106,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       })
       .finally(() => {
+        cleanup();
         setIsSigningIn(false);
+        setSignInProgress(null);
       });
   }, [environment]);
 
@@ -125,6 +138,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isDemo,
         isLoading,
         isSigningIn,
+        signInProgress,
         user,
         setEnvironment,
         signIn,

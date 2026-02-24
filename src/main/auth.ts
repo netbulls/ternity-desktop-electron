@@ -506,12 +506,14 @@ async function refreshTokens(
 // Sign-in / sign-out / state
 // ============================================================
 
+export type ProgressCallback = (data: { step: number; label: string; progress: number }) => void;
+
 let activeServer: Server | null = null;
 let activeSignIn: Promise<SignInResult> | null = null;
 let activeAbort: (() => void) | null = null;
 let signOutServer: Server | null = null;
 
-export async function signIn(envId: EnvironmentId): Promise<SignInResult> {
+export async function signIn(envId: EnvironmentId, onProgress?: ProgressCallback): Promise<SignInResult> {
   // Cancel any existing sign-in attempt before starting a new one
   if (activeSignIn) {
     log.info('Cancelling previous sign-in before starting new one');
@@ -531,17 +533,22 @@ export async function signIn(envId: EnvironmentId): Promise<SignInResult> {
   // Local env uses stub auth — no OIDC, API accepts any request (AUTH_MODE=stub)
   if (envId === 'local') {
     try {
+      onProgress?.({ step: 1, label: 'Connecting to auth server', progress: 0.10 });
+
       // Store a stub token so getAccessToken() returns something
       const stubToken: TokenSet = {
         access_token: 'stub-local',
         expires_at: Math.floor(Date.now() / 1000) + 365 * 24 * 60 * 60, // 1 year
       };
 
+      onProgress?.({ step: 5, label: 'Loading profile', progress: 0.85 });
+
       // Fetch real user profile from local API (stub auth auto-picks a user)
       const user = await fetchApiProfile(env.apiBaseUrl, stubToken.access_token);
       if (user) stubToken.userinfo = user;
 
       storeTokens(envId, stubToken);
+      onProgress?.({ step: 6, label: 'Done', progress: 1.0 });
       log.info('Stub sign-in complete for local, user:', user?.name ?? 'unknown');
       return { success: true, isAuthenticated: true, user };
     } catch (err) {
@@ -558,6 +565,7 @@ export async function signIn(envId: EnvironmentId): Promise<SignInResult> {
   activeSignIn = (async (): Promise<SignInResult> => {
     try {
       // 1. Discover OIDC endpoints
+      onProgress?.({ step: 1, label: 'Connecting to auth server', progress: 0.10 });
       log.info('Discovering OIDC endpoints for', env.logtoEndpoint);
       const oidc = await discoverOidc(env.logtoEndpoint);
       log.info('OIDC discovered:', oidc.authorization_endpoint);
@@ -587,12 +595,15 @@ export async function signIn(envId: EnvironmentId): Promise<SignInResult> {
       });
 
       const authUrl = `${oidc.authorization_endpoint}?${authParams.toString()}`;
+      onProgress?.({ step: 2, label: 'Opening browser', progress: 0.25 });
       log.info('Opening browser:', authUrl);
       await shell.openExternal(authUrl);
+      onProgress?.({ step: 3, label: 'Waiting for sign-in', progress: 0.40 });
       log.info('Browser opened, waiting for callback...');
 
       // 5. Wait for callback with auth code
       const { code, close } = await callbackPromise;
+      onProgress?.({ step: 4, label: 'Securing session', progress: 0.65 });
       log.info('Got auth code, exchanging for tokens...');
 
       // 6. Exchange code for tokens
@@ -601,6 +612,7 @@ export async function signIn(envId: EnvironmentId): Promise<SignInResult> {
       close();
 
       // 7. Get user profile from Ternity API (same source as web app)
+      onProgress?.({ step: 5, label: 'Loading profile', progress: 0.85 });
       const apiProfile = await fetchApiProfile(env.apiBaseUrl, tokens.access_token);
       if (apiProfile) {
         tokens.userinfo = apiProfile;
@@ -612,6 +624,7 @@ export async function signIn(envId: EnvironmentId): Promise<SignInResult> {
 
       // 8. Store tokens (with cached profile)
       storeTokens(envId, tokens);
+      onProgress?.({ step: 6, label: 'Done', progress: 1.0 });
 
       log.info('Sign-in complete, user:', user?.name ?? user?.email ?? user?.sub);
       return { success: true, isAuthenticated: true, user };

@@ -1,12 +1,12 @@
 import { motion } from 'motion/react';
-import { LogIn, Loader2, RotateCw } from 'lucide-react';
+import { LogIn, RotateCw } from 'lucide-react';
 import { scaled } from '@/lib/scaled';
 import { ENVIRONMENT_LIST, type EnvironmentId } from '@/lib/environments';
 import { useAuth } from '@/providers/auth-provider';
 import { HourglassLogo } from './hourglass-logo';
 
 export function LoginView() {
-  const { environment, setEnvironment, signIn, signInDemo, isSigningIn, cancelSignIn } = useAuth();
+  const { environment, setEnvironment, signIn, signInDemo, isSigningIn, signInProgress, cancelSignIn } = useAuth();
 
   return (
     <div
@@ -57,15 +57,24 @@ export function LoginView() {
           {/* Sign-in / signing-in state */}
           {isSigningIn ? (
             <div className="flex w-full flex-col items-center" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
-              <div
-                className="flex w-full items-center justify-center rounded-lg border border-border bg-card/50 py-2.5 text-muted-foreground"
-                style={{ fontSize: scaled(12), gap: scaled(8) }}
-              >
-                <Loader2
-                  className="animate-spin text-primary"
-                  style={{ width: scaled(16), height: scaled(16) }}
-                />
-                Waiting for browser...
+              <div className="w-full" style={{ padding: `0 ${scaled(4)}` }}>
+                <div
+                  className="w-full overflow-hidden rounded-full bg-muted"
+                  style={{ height: 3 }}
+                >
+                  <motion.div
+                    className="h-full rounded-full bg-primary"
+                    initial={{ width: '0%' }}
+                    animate={{ width: `${(signInProgress?.progress ?? 0) * 100}%` }}
+                    transition={{ type: 'spring', stiffness: 100, damping: 20 }}
+                  />
+                </div>
+                <div
+                  className="mt-2 text-center text-muted-foreground"
+                  style={{ fontSize: scaled(11) }}
+                >
+                  {signInProgress?.label ?? 'Starting...'}
+                </div>
               </div>
               <button
                 className="mt-3 text-muted-foreground/50 transition-colors hover:text-muted-foreground"

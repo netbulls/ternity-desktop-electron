@@ -16,6 +16,14 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getAuthState: (envId: string) => ipcRenderer.invoke('auth:get-auth-state', envId),
   getAccessToken: (envId: string) => ipcRenderer.invoke('auth:get-access-token', envId),
   cancelSignIn: () => ipcRenderer.invoke('auth:cancel-sign-in'),
+  onAuthProgress: (callback: (data: { step: number; label: string; progress: number }) => void) => {
+    const handler = (_event: unknown, data: { step: number; label: string; progress: number }) =>
+      callback(data);
+    ipcRenderer.on('auth:progress', handler);
+    return () => {
+      ipcRenderer.removeListener('auth:progress', handler);
+    };
+  },
   apiFetch: (envId: string, path: string, options?: { method?: string; body?: unknown }) =>
     ipcRenderer.invoke('api:fetch', envId, path, options),
   getLoginItem: () => ipcRenderer.invoke('app:get-login-item'),
