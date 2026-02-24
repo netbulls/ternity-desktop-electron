@@ -32,6 +32,7 @@ interface Window {
     setEnvironment: (env: string) => Promise<void>;
     openExternal: (url: string) => Promise<void>;
     signIn: (envId: string) => Promise<SignInResult>;
+    signInDemo: () => Promise<void>;
     signOut: (envId: string) => Promise<void>;
     getAuthState: (envId: string) => Promise<AuthState>;
     getAccessToken: (envId: string) => Promise<string | null>;
@@ -49,5 +50,6 @@ interface Window {
     getRememberPosition: () => Promise<boolean>;
     setRememberPosition: (enabled: boolean) => Promise<void>;
     getLastHeight: () => Promise<number>;
+    setSuppressEscape: (suppressed: boolean) => void;
   };
 }

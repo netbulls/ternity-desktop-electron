@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 export function AnimatedDigit({ char }: { char: string }) {
   return (
     <span
-      className="inline-block overflow-hidden"
+      className="text-box-cap inline-block overflow-hidden"
       style={{ width: char === ':' ? '0.35em' : '0.6em', textAlign: 'center' }}
     >
       <AnimatePresence mode="popLayout" initial={false}>

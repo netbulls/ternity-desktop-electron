@@ -126,13 +126,13 @@ export function setCachedDefaultProjectId(id: string | null): void {
 }
 
 export function DataProvider({ children }: { children: ReactNode }) {
-  const { environment, environmentConfig, isAuthenticated, isDemo, signOut } = useAuth();
+  const { environment, environmentConfig, isAuthenticated, signOut } = useAuth();
   const [timer, setTimer] = useState<TimerState>(DEFAULT_TIMER);
   const [entries, setEntries] = useState<DayGroup[]>([]);
   const [stats, setStats] = useState<Stats>(DEFAULT_STATS);
   const [projects, setProjects] = useState<ProjectOption[]>([]);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const [isLoading, setIsLoading] = useState(!isDemo);
+  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [mutationError, setMutationError] = useState<MutationError | null>(null);
   const dismissMutationError = useCallback(() => setMutationError(null), []);
@@ -217,7 +217,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
 
   // Initial fetch on mount
   useEffect(() => {
-    if (isDemo) return;
     let cancelled = false;
 
     (async () => {
@@ -242,11 +241,10 @@ export function DataProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [isDemo, fetchTimerAndStats, fetchEntries, fetchProjects, fetchUserProfile, handleApiError]);
+  }, [fetchTimerAndStats, fetchEntries, fetchProjects, fetchUserProfile, handleApiError]);
 
   // Poll every 5s — always timer+stats, retry entries/projects if they failed
   useEffect(() => {
-    if (isDemo) return;
 
     pollRef.current = setInterval(async () => {
       try {
@@ -263,7 +261,6 @@ export function DataProvider({ children }: { children: ReactNode }) {
       if (pollRef.current) clearInterval(pollRef.current);
     };
   }, [
-    isDemo,
     fetchTimerAndStats,
     fetchEntries,
     fetchProjects,

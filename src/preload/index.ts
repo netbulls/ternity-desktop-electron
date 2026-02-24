@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setEnvironment: (env: string) => ipcRenderer.invoke('auth:set-env', env),
   openExternal: (url: string) => ipcRenderer.invoke('auth:open-external', url),
   signIn: (envId: string) => ipcRenderer.invoke('auth:sign-in', envId),
+  signInDemo: () => ipcRenderer.invoke('auth:sign-in-demo'),
   signOut: (envId: string) => ipcRenderer.invoke('auth:sign-out', envId),
   getAuthState: (envId: string) => ipcRenderer.invoke('auth:get-auth-state', envId),
   getAccessToken: (envId: string) => ipcRenderer.invoke('auth:get-access-token', envId),
@@ -27,4 +28,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
   setRememberPosition: (enabled: boolean) =>
     ipcRenderer.invoke('app:set-remember-position', enabled),
   getLastHeight: () => ipcRenderer.invoke('app:get-last-height'),
+  setSuppressEscape: (suppressed: boolean) => ipcRenderer.send('set-suppress-escape', suppressed),
 });

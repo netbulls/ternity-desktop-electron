@@ -97,7 +97,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
   }, [environment]);
 
-  const signInDemo = useCallback(() => {
+  const signInDemo = useCallback(async () => {
+    await window.electronAPI?.signInDemo();
     setIsAuthenticated(true);
     setUser({ sub: 'demo', name: 'Demo User' });
   }, []);

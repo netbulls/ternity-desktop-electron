@@ -24,6 +24,84 @@
   will-change: transform, border-color;
 }
 
+@keyframes input-commit {
+  0% {
+    border-color: hsl(var(--primary) / 0.6);
+    background: hsl(var(--primary) / 0.04);
+  }
+  50% {
+    border-color: hsl(142 71% 45% / 0.8);
+    background: hsl(var(--primary) / 0.06);
+  }
+  100% {
+    border-color: transparent;
+    background: transparent;
+  }
+}
+
+.input-commit {
+  animation: input-commit 0.5s ease-out;
+  will-change: border-color, background;
+}
+
+@keyframes input-clear {
+  0% {
+    border-color: hsl(38 92% 50% / 0.6);
+    background: hsl(38 92% 50% / 0.04);
+  }
+  50% {
+    border-color: hsl(38 92% 50% / 0.8);
+    background: hsl(38 92% 50% / 0.06);
+  }
+  100% {
+    border-color: transparent;
+    background: transparent;
+  }
+}
+
+.input-clear {
+  animation: input-clear 0.5s ease-out;
+  will-change: border-color, background;
+}
+
+@keyframes pill-clear {
+  0% {
+    transform: scale(1);
+    border-color: hsl(38 92% 50% / 0.4);
+  }
+  40% {
+    transform: scale(1.1);
+    border-color: hsl(38 92% 50% / 0.8);
+  }
+  100% {
+    transform: scale(1);
+    border-color: transparent;
+  }
+}
+
+.pill-clear {
+  animation: pill-clear 0.45s ease-out;
+  will-change: transform, border-color;
+}
+
+@keyframes pulse-slow {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.animate-pulse-slow {
+  animation: pulse-slow 2s ease-in-out infinite;
+}
+
+.text-box-cap {
+  text-box: trim-both cap alphabetic;
+}
+
 @keyframes liquid-drift {
   0% {
     left: -5%;
