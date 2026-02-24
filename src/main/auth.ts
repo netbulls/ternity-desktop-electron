@@ -163,13 +163,16 @@ function decodeIdToken(idToken: string): AuthUser | null {
 // ============================================================
 
 const CALLBACK_PORT = 21987;
-const CALLBACK_TIMEOUT_MS = 2 * 60 * 1000; // 2 minutes
+const CALLBACK_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
 
-const BRAND_LOGO_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 120" fill="none" width="48" height="58">
+const BRAND_LOGO_COMBO_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 444 120" fill="none" height="28">
   <path d="M18 5 L82 5 L62 48 L82 95 L18 95 L38 48Z" stroke="#00D4AA" stroke-width="5" fill="none" stroke-linejoin="round"/>
   <circle cx="50" cy="32" r="6" fill="#00D4AA"/><circle cx="49" cy="52" r="7.5" fill="#00D4AA"/>
   <circle cx="54" cy="67" r="5.5" fill="#00D4AA"/><circle cx="44" cy="77" r="7" fill="#00D4AA"/>
   <circle cx="56" cy="83" r="6" fill="#00D4AA"/>
+  <g transform="translate(118.0, 77.6) scale(0.8000)">
+    <path d="M24.10-57.90L2.40-57.90L2.40-69L58.10-69L58.10-57.90L36.40-57.90L36.40 0L24.10 0L24.10-57.90ZM115.40 0L69 0L69-69L115.40-69L115.40-57.90L81.20-57.90L81.20-41.30L112.40-41.30L112.40-30.20L81.20-30.20L81.20-11.10L115.40-11.10L115.40 0ZM141.10 0L128.90 0L128.90-69L162.10-69Q178.40-69 178.40-52.70L178.40-52.70L178.40-41.40Q178.40-28.80 168.40-26.10L168.40-26.10L180.40-2.60L178.90 0L168.50 0L155.70-25.20L141.10-25.20L141.10 0ZM141.10-57.90L141.10-36.30L161.80-36.30Q166.20-36.30 166.20-40.70L166.20-40.70L166.20-53.60Q166.20-57.90 161.80-57.90L161.80-57.90L141.10-57.90ZM205.60 0L193.40 0L193.40-69L206.70-69L237.30-19.80L237.30-69L249.50-69L249.50 0L236.30 0L205.60-49.20L205.60 0ZM278.70 0L266.50 0L266.50-69L278.70-69L278.70 0ZM311.30-57.90L289.60-57.90L289.60-69L345.30-69L345.30-57.90L323.60-57.90L323.60 0L311.30 0L311.30-57.90ZM371.70-24.80L349.60-66.60L351.10-69L361.50-69L377.80-37.70L394.20-69L404.70-69L406.10-66.60L384-24.80L384 0L371.70 0L371.70-24.80Z" fill="#00D4AA"/>
+  </g>
 </svg>`;
 
 const FAVICON_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 120"><path d="M18 5 L82 5 L62 48 L82 95 L18 95 L38 48Z" stroke="#00D4AA" stroke-width="5" fill="none" stroke-linejoin="round"/><circle cx="50" cy="32" r="6" fill="#00D4AA"/><circle cx="49" cy="52" r="7.5" fill="#00D4AA"/><circle cx="54" cy="67" r="5.5" fill="#00D4AA"/><circle cx="44" cy="77" r="7" fill="#00D4AA"/><circle cx="56" cy="83" r="6" fill="#00D4AA"/></svg>';
@@ -178,29 +181,70 @@ const FAVICON_SVG_BUFFER = Buffer.from(FAVICON_SVG);
 const BRAND_HEAD = `<meta charset="utf-8"><link rel="icon" type="image/svg+xml" href="/favicon.svg">`;
 
 const BRAND_STYLES = `
-  @import url('https://fonts.googleapis.com/css2?family=Oxanium:wght@400;600;700&display=swap');
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: 'Oxanium', sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background: #0a0a0a; color: #e5e5e5; }
-  .card { text-align: center; padding: 2.5rem; max-width: 360px; }
-  .logo { margin-bottom: 1.25rem; opacity: 0.5; }
-  .brand { font-size: 0.75rem; font-weight: 600; letter-spacing: 5px; text-transform: uppercase; color: #fff; margin-bottom: 1.5rem; display: flex; align-items: baseline; justify-content: center; gap: 0.5rem; }
-  .brand-sub { font-size: 0.6rem; font-weight: 400; letter-spacing: 1px; text-transform: none; color: rgba(255,255,255,0.35); }
-  h1 { font-size: 1.25rem; font-weight: 600; margin-bottom: 0.5rem; }
-  p { color: rgba(255,255,255,0.5); font-size: 0.85rem; line-height: 1.5; }
-  .divider { width: 100%; height: 1px; background: #141414; margin: 1.5rem 0; }
-  .btn { display: inline-block; padding: 0.6rem 1.5rem; border-radius: 0.5rem; font-family: 'Oxanium', sans-serif; font-size: 0.85rem; font-weight: 600; cursor: pointer; text-decoration: none; transition: opacity 0.15s; border: none; }
-  .btn:hover { opacity: 0.85; }
-  .btn-primary { background: #00D4AA; color: #0a0a0a; }
-  .btn-ghost { background: none; color: rgba(255,255,255,0.4); font-size: 0.75rem; padding: 0.4rem 1rem; }
-  .btn-ghost:hover { color: rgba(255,255,255,0.7); }
+  @import url('https://fonts.googleapis.com/css2?family=Oxanium:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap');
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Inter', sans-serif;
+    display: flex; align-items: center; justify-content: center;
+    height: 100vh; margin: 0;
+    background: #080a0c;
+    background-image: radial-gradient(ellipse at 30% 20%, #0d1f1c 0%, #080a0c 60%);
+    color: #f0f2f4;
+  }
+  .card {
+    text-align: center;
+    max-width: 420px; width: 100%;
+    background: #111416;
+    border: 1px solid rgba(0, 212, 170, 0.12);
+    border-radius: 12px;
+    box-shadow: 0 4px 40px rgba(0,0,0,0.6), 0 1px 0 rgba(255,255,255,0.04) inset;
+    padding: 48px 44px;
+    animation: cardIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    position: relative;
+  }
+  .card::before {
+    content: '';
+    display: block;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, #00D4AA, transparent);
+    border-radius: 2px 2px 0 0;
+    margin: -48px -44px 48px;
+    opacity: 0.6;
+  }
+  @keyframes cardIn {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .logo { margin-bottom: 36px; display: flex; justify-content: center; }
+  .logo svg { height: 28px; width: auto; }
+  h1 { font-family: 'Oxanium', sans-serif; font-size: 18px; font-weight: 600; margin-bottom: 12px; letter-spacing: -0.01em; line-height: 1.3; }
+  p { color: #7a8896; font-size: 13px; line-height: 1.5; }
+  .divider { width: 100%; height: 1px; background: rgba(255,255,255,0.08); margin: 24px 0; }
+  .btn {
+    display: inline-block; padding: 14px 24px; border-radius: 8px;
+    font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 600;
+    cursor: pointer; text-decoration: none; border: none;
+    letter-spacing: 0.01em;
+    transition: background 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+  }
+  .btn-primary {
+    background: #00D4AA; color: #080a0c;
+    box-shadow: 0 2px 20px rgba(0, 212, 170, 0.25);
+  }
+  .btn-primary:hover {
+    background: #00BF99;
+    box-shadow: 0 4px 28px rgba(0, 212, 170, 0.4);
+    transform: translateY(-1px);
+  }
+  .btn-ghost { background: none; color: #7a8896; font-size: 13px; padding: 8px 16px; }
+  .btn-ghost:hover { color: #f0f2f4; }
 `;
 
 const SUCCESS_HTML = `<!DOCTYPE html>
 <html>
 <head>${BRAND_HEAD}<title>Signed in — Ternity</title><style>${BRAND_STYLES}</style></head>
 <body><div class="card">
-  <div class="logo">${BRAND_LOGO_SVG}</div>
-  <div class="brand">Ternity <span class="brand-sub">Electron</span></div>
+  <div class="logo">${BRAND_LOGO_COMBO_SVG}</div>
   <h1 style="color: #00D4AA;">Signed in</h1>
   <p>You can close this tab and return to Ternity.</p>
 </div></body>
@@ -210,8 +254,7 @@ const ERROR_HTML = (msg: string) => `<!DOCTYPE html>
 <html>
 <head>${BRAND_HEAD}<title>Sign in failed — Ternity</title><style>${BRAND_STYLES}</style></head>
 <body><div class="card">
-  <div class="logo">${BRAND_LOGO_SVG}</div>
-  <div class="brand">Ternity <span class="brand-sub">Electron</span></div>
+  <div class="logo">${BRAND_LOGO_COMBO_SVG}</div>
   <h1 style="color: #ef4444;">Sign in failed</h1>
   <p>${msg}</p>
 </div></body>
@@ -221,13 +264,12 @@ const SIGNOUT_HTML = (endSessionUrl: string | null) => `<!DOCTYPE html>
 <html>
 <head>${BRAND_HEAD}<title>Signed out — Ternity</title><style>${BRAND_STYLES}</style></head>
 <body><div class="card">
-  <div class="logo">${BRAND_LOGO_SVG}</div>
-  <div class="brand">Ternity <span class="brand-sub">Electron</span></div>
+  <div class="logo">${BRAND_LOGO_COMBO_SVG}</div>
   <h1 style="color: #00D4AA;">Signed out</h1>
   <p>You've been signed out of Ternity Desktop.</p>
   ${endSessionUrl ? `
   <div class="divider"></div>
-  <p style="margin-bottom: 1rem;">Still signed in to the browser?</p>
+  <p style="margin-bottom: 16px;">Still signed in to the browser?</p>
   <a href="${endSessionUrl}" class="btn btn-primary">Sign out of browser</a>
   ` : ''}
 </div></body>
@@ -237,8 +279,7 @@ const SIGNOUT_COMPLETE_HTML = `<!DOCTYPE html>
 <html>
 <head>${BRAND_HEAD}<title>Signed out — Ternity</title><style>${BRAND_STYLES}</style></head>
 <body><div class="card">
-  <div class="logo">${BRAND_LOGO_SVG}</div>
-  <div class="brand">Ternity <span class="brand-sub">Electron</span></div>
+  <div class="logo">${BRAND_LOGO_COMBO_SVG}</div>
   <h1 style="color: #00D4AA;">Fully signed out</h1>
   <p>You've been signed out of the desktop app and the browser. You can close this tab.</p>
 </div></body>
@@ -250,7 +291,7 @@ function startCallbackServer(): Promise<{ code: string; close: () => void }> {
 
     const timeout = setTimeout(() => {
       cleanup();
-      reject(new Error('Sign-in timed out — no callback received within 2 minutes'));
+      reject(new Error('Sign-in timed out — no callback received within 5 minutes'));
     }, CALLBACK_TIMEOUT_MS);
 
     function cleanup() {

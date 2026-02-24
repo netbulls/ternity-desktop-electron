@@ -8,11 +8,16 @@
 - "Don't ask again" checkbox in switch confirmation overlay
 
 ### Changed
+- Restyle auth browser pages (sign-in, sign-out, error) to match deployed Logto "Abyss" theme — card with shimmer line, radial gradient background, combo logo
+- Restyle login view with Abyss-inspired card, shimmer line, radial gradient background, and button glow
+- Style env/version badges in footer as bordered badges with color-coded env indicators
+- Use brand font (Oxanium) for "Open Ternity" link in footer
 - Move non-prod environment indicator from header strip to footer — shows env pill + version alongside "Open Ternity" link
 - Auth browser pages now show "Electron" label, proper favicon, and correct character encoding
 - Dim day headers and footer overlay — more opaque solid zone with consistent scaled fade distance
 
 ### Fixed
+- Increase OAuth callback server timeout from 2 to 5 minutes to prevent premature timeout on slower auth flows
 - Sticky day headers overlay instead of pushing previous header out when scrolling
 - Version number not injected in release builds — users saw stale version from last dev session
 - Day header frosted glass effect restored (was hidden behind solid background)

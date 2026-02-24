@@ -11,93 +11,129 @@ export function LoginView() {
   return (
     <div
       className="flex h-screen flex-col items-center text-center"
-      style={{ padding: `${scaled(24)} ${scaled(24)}`, WebkitAppRegion: 'drag' } as React.CSSProperties}
+      style={{
+        padding: `${scaled(24)} ${scaled(24)}`,
+        WebkitAppRegion: 'drag',
+        background: 'radial-gradient(ellipse at 30% 20%, hsl(168 50% 8%) 0%, hsl(var(--background)) 60%)',
+      } as React.CSSProperties}
     >
-      {/* Top section — branding */}
-      <div className="flex flex-1 flex-col items-center justify-center">
-        <div className="mb-6 text-primary" style={{ opacity: 0.5 }}>
-          <HourglassLogo size={48} />
-        </div>
-        <div
-          className="mb-1.5 font-brand font-semibold uppercase tracking-widest text-foreground"
-          style={{ fontSize: scaled(16), letterSpacing: '5px' }}
+      {/* Top section — card */}
+      <div className="flex flex-1 flex-col items-center justify-center" style={{ width: '100%' }}>
+        <motion.div
+          className="relative flex w-full flex-col items-center overflow-hidden rounded-xl border"
+          style={{
+            padding: `${scaled(36)} ${scaled(28)} ${scaled(28)}`,
+            background: 'hsl(var(--card))',
+            borderColor: 'hsl(var(--primary) / 0.12)',
+            boxShadow: '0 4px 40px rgba(0,0,0,0.4), 0 1px 0 rgba(255,255,255,0.04) inset',
+          }}
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
         >
-          TERNITY
-        </div>
-        <div className="mb-8 text-muted-foreground" style={{ fontSize: scaled(11) }}>
-          Time tracking for your team
-        </div>
+          {/* Shimmer line */}
+          <div
+            className="absolute left-0 right-0 top-0"
+            style={{
+              height: 2,
+              background: 'linear-gradient(90deg, transparent, hsl(var(--primary)), transparent)',
+              opacity: 0.6,
+            }}
+          />
 
-        {/* Sign-in / signing-in state */}
-        {isSigningIn ? (
-          <div className="flex w-full flex-col items-center" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
-            <div
-              className="flex w-full items-center justify-center rounded-lg border border-border bg-card/50 py-2.5 text-muted-foreground"
-              style={{ fontSize: scaled(12), gap: scaled(8) }}
-            >
-              <Loader2
-                className="animate-spin text-primary"
-                style={{ width: scaled(16), height: scaled(16) }}
-              />
-              Waiting for browser...
+          <div className="mb-4 text-primary">
+            <HourglassLogo size={36} />
+          </div>
+          <div
+            className="mb-1 font-brand font-semibold uppercase tracking-widest text-foreground"
+            style={{ fontSize: scaled(14), letterSpacing: '5px' }}
+          >
+            TERNITY
+          </div>
+          <div className="text-muted-foreground" style={{ fontSize: scaled(10), marginBottom: scaled(24) }}>
+            Time tracking for your team
+          </div>
+
+          {/* Sign-in / signing-in state */}
+          {isSigningIn ? (
+            <div className="flex w-full flex-col items-center" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+              <div
+                className="flex w-full items-center justify-center rounded-lg border border-border bg-card/50 py-2.5 text-muted-foreground"
+                style={{ fontSize: scaled(12), gap: scaled(8) }}
+              >
+                <Loader2
+                  className="animate-spin text-primary"
+                  style={{ width: scaled(16), height: scaled(16) }}
+                />
+                Waiting for browser...
+              </div>
+              <button
+                className="mt-3 text-muted-foreground/50 transition-colors hover:text-muted-foreground"
+                style={{ fontSize: scaled(10) }}
+                onClick={cancelSignIn}
+              >
+                Cancel
+              </button>
             </div>
-            <button
-              className="mt-3 text-muted-foreground/50 transition-colors hover:text-muted-foreground"
-              style={{ fontSize: scaled(10) }}
-              onClick={cancelSignIn}
-            >
-              Cancel
-            </button>
-          </div>
-        ) : (
-          <div className="flex w-full flex-col items-center" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
-            <motion.button
-              className="flex w-full items-center justify-center rounded-lg bg-primary py-2.5 font-medium text-primary-foreground transition-colors"
-              style={{ fontSize: scaled(12), gap: scaled(8) }}
-              whileTap={{ scale: 0.97 }}
-              onClick={signIn}
-            >
-              <LogIn style={{ width: scaled(14), height: scaled(14) }} />
-              Sign in with browser
-            </motion.button>
+          ) : (
+            <div className="flex w-full flex-col items-center" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+              <motion.button
+                className="flex w-full items-center justify-center rounded-lg bg-primary py-2.5 font-medium text-primary-foreground"
+                style={{
+                  fontSize: scaled(12),
+                  gap: scaled(8),
+                  boxShadow: '0 2px 20px hsl(var(--primary) / 0.25)',
+                }}
+                whileHover={{ boxShadow: '0 4px 28px hsl(var(--primary) / 0.4)', y: -1 }}
+                whileTap={{ scale: 0.97, y: 0 }}
+                transition={{ duration: 0.18 }}
+                onClick={signIn}
+              >
+                <LogIn style={{ width: scaled(14), height: scaled(14) }} />
+                Sign in with browser
+              </motion.button>
 
-            <button
-              className="mt-3 text-muted-foreground/50 transition-colors hover:text-muted-foreground"
-              style={{ fontSize: scaled(10) }}
-              onClick={signInDemo}
-            >
-              Continue as demo
-            </button>
-          </div>
-        )}
+              <button
+                className="mt-3 text-muted-foreground/50 transition-colors hover:text-muted-foreground"
+                style={{ fontSize: scaled(10) }}
+                onClick={signInDemo}
+              >
+                Continue as demo
+              </button>
+            </div>
+          )}
+        </motion.div>
       </div>
 
-      {/* Footer — version + env selector */}
+      {/* Footer — env pills + version */}
       <div className="flex w-full flex-col items-center" style={{ gap: scaled(8) }}>
-        <div className="h-px w-full bg-border/40" />
-        <div className="text-muted-foreground/40" style={{ fontSize: scaled(9) }}>
-          Electron · {__APP_VERSION__}
-        </div>
         <div
-          className="flex items-center text-muted-foreground/40"
-          style={{ fontSize: scaled(9), gap: scaled(4), WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+          className="flex items-center"
+          style={{ gap: scaled(4), WebkitAppRegion: 'no-drag' } as React.CSSProperties}
         >
-          {ENVIRONMENT_LIST.map((env, i) => (
-            <span key={env.id} className="flex items-center" style={{ gap: scaled(4) }}>
-              {i > 0 && <span>·</span>}
+          {ENVIRONMENT_LIST.map((env) => {
+            const active = environment === env.id;
+            const colorClass =
+              env.id === 'local'
+                ? active ? 'text-amber-500 bg-amber-500/8 border-amber-500/30' : 'text-muted-foreground/40 border-transparent hover:text-amber-500/60'
+                : env.id === 'dev'
+                  ? active ? 'text-blue-400 bg-blue-400/8 border-blue-400/30' : 'text-muted-foreground/40 border-transparent hover:text-blue-400/60'
+                  : active ? 'text-primary bg-primary/8 border-primary/30' : 'text-muted-foreground/40 border-transparent hover:text-primary/60';
+            return (
               <button
+                key={env.id}
                 disabled={isSigningIn}
-                className={`transition-colors ${
-                  environment === env.id
-                    ? 'text-primary'
-                    : 'hover:text-muted-foreground'
-                } ${isSigningIn ? 'cursor-not-allowed' : ''}`}
+                className={`rounded-full border font-mono font-semibold uppercase transition-colors ${colorClass} ${isSigningIn ? 'cursor-not-allowed' : ''}`}
+                style={{ fontSize: scaled(8), padding: `${scaled(2)} ${scaled(10)}` }}
                 onClick={() => setEnvironment(env.id as EnvironmentId)}
               >
                 {env.label}
               </button>
-            </span>
-          ))}
+            );
+          })}
+        </div>
+        <div className="text-muted-foreground/30" style={{ fontSize: scaled(8) }}>
+          {__APP_VERSION__}
         </div>
       </div>
     </div>

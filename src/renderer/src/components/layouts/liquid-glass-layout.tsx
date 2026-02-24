@@ -691,27 +691,30 @@ export function LiquidGlassLayout({
               className={`relative flex ${environment === 'prod' ? 'items-center justify-center' : 'items-baseline justify-between'}`}
               style={{ padding: `${scaled(16)} ${scaled(14)} ${scaled(4)}` }}
             >
+              {environment !== 'prod' && (
+                <div className="pointer-events-auto flex items-center" style={{ gap: scaled(5) }}>
+                  <span
+                    className={`font-mono font-semibold uppercase leading-none border ${environment === 'local' ? 'text-amber-500 bg-amber-500/8 border-amber-500/20' : 'text-blue-400 bg-blue-400/8 border-blue-400/20'}`}
+                    style={{ fontSize: scaled(8), padding: `${scaled(2)} ${scaled(5)}`, borderRadius: scaled(3) }}
+                  >
+                    {environment}
+                  </span>
+                  <span
+                    className="font-mono font-medium leading-none text-muted-foreground border border-muted-foreground/15 bg-muted-foreground/8"
+                    style={{ fontSize: scaled(8), padding: `${scaled(2)} ${scaled(5)}`, borderRadius: scaled(3) }}
+                  >
+                    {__APP_VERSION__}
+                  </span>
+                </div>
+              )}
               <button
-                className="pointer-events-auto flex cursor-pointer items-center text-muted-foreground transition-colors hover:text-primary"
+                className="pointer-events-auto flex cursor-pointer items-center font-brand text-muted-foreground transition-colors hover:text-primary"
                 style={{ fontSize: scaled(11), gap: scaled(4) }}
                 onClick={() => window.electronAPI?.openExternal(webAppUrl)}
               >
                 Open Ternity
                 <ExternalLink style={{ width: scaled(10), height: scaled(10) }} />
               </button>
-              {environment !== 'prod' && (
-                <div className="pointer-events-auto flex items-center" style={{ gap: scaled(5) }}>
-                  <span
-                    className={`font-mono font-semibold uppercase leading-none ${environment === 'local' ? 'text-amber-500 bg-amber-500/8' : 'text-blue-400 bg-blue-400/8'}`}
-                    style={{ fontSize: scaled(8), padding: `${scaled(2)} ${scaled(5)}`, borderRadius: scaled(4) }}
-                  >
-                    {environment}
-                  </span>
-                  <span className="font-mono leading-none text-muted-foreground/50" style={{ fontSize: scaled(8) }}>
-                    {__APP_VERSION__}
-                  </span>
-                </div>
-              )}
             </div>
           </div>
         </div>
