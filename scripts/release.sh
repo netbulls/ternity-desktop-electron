@@ -52,6 +52,35 @@ node -e "
   fs.writeFileSync('package.json', JSON.stringify(p, null, 2) + '\n');
 "
 
+# --- Pre-flight git checks ---
+PREFLIGHT_FAIL=false
+
+UNTRACKED=$(git ls-files --others --exclude-standard -- src/)
+if [ -n "$UNTRACKED" ]; then
+  echo "ABORT: Untracked files in src/ — commit or remove them before releasing:"
+  echo "$UNTRACKED" | sed 's/^/  /'
+  PREFLIGHT_FAIL=true
+fi
+
+UNCOMMITTED=$(git diff --name-only -- src/)
+if [ -n "$UNCOMMITTED" ]; then
+  echo "ABORT: Uncommitted changes in src/ — commit or stash them before releasing:"
+  echo "$UNCOMMITTED" | sed 's/^/  /'
+  PREFLIGHT_FAIL=true
+fi
+
+LOCAL_HEAD=$(git rev-parse HEAD)
+ORIGIN_MAIN=$(git rev-parse origin/main 2>/dev/null || echo "")
+if [ -n "$ORIGIN_MAIN" ] && [ "$LOCAL_HEAD" != "$ORIGIN_MAIN" ]; then
+  echo "ABORT: Local HEAD ($LOCAL_HEAD) differs from origin/main ($ORIGIN_MAIN)"
+  echo "  Push your changes or pull the latest before releasing."
+  PREFLIGHT_FAIL=true
+fi
+
+if [ "$PREFLIGHT_FAIL" = true ]; then
+  exit 1
+fi
+
 echo "=== Release v${VERSION} ==="
 echo "Environments: ${ENVS[*]}"
 echo ""
@@ -97,26 +126,199 @@ LINUX_ARM64_HOST="ubuntu-arm64"
 LINUX_X64_HOST="ubuntu-x64"
 LINUX_PROJECT_DIR="ternity-desktop"  # relative to home dir (works with both ssh and scp)
 
+VPS_HOST="${DRIVE_VPS_HOST:-89.167.28.70}"
+VPS_USER="${DRIVE_VPS_USER:-deploy}"
+
+# --- VM name mapping (SSH host → Parallels VM name) ---
+vm_name_for_host() {
+  case "$1" in
+    ubuntu-arm64)  echo "Ubuntu 24.04.3 ARM64" ;;
+    ubuntu-x64)    echo "Ubuntu 24.04 (with Rosetta)" ;;
+    windows-arm64) echo "Windows 10 ARM" ;;
+    *)             echo "" ;;
+  esac
+}
+
+# --- Ensure VM is reachable, auto-boot if needed ---
+# Returns 0 if reachable, 1 if not (caller should skip the group).
+ensure_vm_ready() {
+  local host="$1"
+
+  # Quick SSH ping
+  if ssh -o ConnectTimeout=2 -o BatchMode=yes "$host" "exit 0" 2>/dev/null; then
+    return 0
+  fi
+
+  echo "  $host: SSH unreachable, checking Parallels..."
+
+  # If prlctl isn't available, can't auto-boot
+  if ! command -v prlctl >/dev/null 2>&1; then
+    echo "  $host: prlctl not available — cannot auto-boot"
+    return 1
+  fi
+
+  local vm_name
+  vm_name=$(vm_name_for_host "$host")
+  if [ -z "$vm_name" ]; then
+    echo "  $host: no VM name mapping — cannot auto-boot"
+    return 1
+  fi
+
+  local vm_state
+  vm_state=$(prlctl status "$vm_name" 2>/dev/null | sed 's/.*is //' || echo "unknown")
+
+  case "$vm_state" in
+    stopped)
+      echo "  $host: VM is stopped — starting..."
+      prlctl start "$vm_name" >/dev/null 2>&1
+      ;;
+    suspended|paused)
+      echo "  $host: VM is $vm_state — resuming..."
+      prlctl resume "$vm_name" >/dev/null 2>&1
+      ;;
+    running)
+      echo "  $host: VM is running but SSH not ready — waiting..."
+      ;;
+    *)
+      echo "  $host: VM state '$vm_state' — cannot auto-boot"
+      return 1
+      ;;
+  esac
+
+  # Poll SSH every 3s for up to 60s
+  local attempts=20
+  local i
+  for i in $(seq 1 $attempts); do
+    if ssh -o ConnectTimeout=2 -o BatchMode=yes "$host" "exit 0" 2>/dev/null; then
+      echo "  $host: SSH ready (attempt $i/$attempts)"
+      return 0
+    fi
+    sleep 3
+  done
+
+  echo "  $host: SSH still unreachable after 60s"
+  return 1
+}
+
+# --- SSH tunnel helpers for distribution ---
+TUNNEL_PIDS=()
+
+cleanup_tunnels() {
+  for pid in "${TUNNEL_PIDS[@]}"; do
+    kill "$pid" 2>/dev/null || true
+  done
+}
+
+# Opens a persistent SSH tunnel and sets DRIVE_UPLOAD_URL.
+# Usage: open_drive_tunnel <env>
+# Sets: DRIVE_UPLOAD_URL, DRIVE_API_KEY
+open_drive_tunnel() {
+  local env="$1"
+
+  case "$env" in
+    local)
+      DRIVE_UPLOAD_URL="http://localhost:3020"
+      DRIVE_API_KEY="${DRIVE_LOCAL_API_KEY:-}"
+      return 0
+      ;;
+    dev)
+      local container="ternity-drive-dev"
+      local tunnel_port=13020
+      DRIVE_API_KEY="${DRIVE_DEV_API_KEY:-}"
+      ;;
+    prod)
+      local container="ternity-drive-prod"
+      local tunnel_port=13021
+      DRIVE_API_KEY="${DRIVE_PROD_API_KEY:-}"
+      ;;
+  esac
+
+  local container_ip
+  container_ip=$(ssh "${VPS_USER}@${VPS_HOST}" \
+    "docker inspect --format='{{range .NetworkSettings.Networks}}{{.IPAddress}}{{\"\\n\"}}{{end}}' ${container}" \
+    | grep -oE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
+
+  if [ -z "$container_ip" ]; then
+    echo "  Error: could not resolve IP for container '$container'" >&2
+    return 1
+  fi
+
+  ssh -N -L "${tunnel_port}:${container_ip}:3020" "${VPS_USER}@${VPS_HOST}" &
+  local tunnel_pid=$!
+  TUNNEL_PIDS+=("$tunnel_pid")
+
+  # Health check: poll /health every 0.5s, up to 20 attempts (10s)
+  local i
+  for i in $(seq 1 20); do
+    if curl -s "http://localhost:${tunnel_port}/health" >/dev/null 2>&1; then
+      DRIVE_UPLOAD_URL="http://localhost:${tunnel_port}"
+      echo "  Tunnel ready ($env → ${container_ip}:3020 via port $tunnel_port)"
+      return 0
+    fi
+    sleep 0.5
+  done
+
+  echo "  Error: tunnel health check failed for $env" >&2
+  return 1
+}
+
+close_drive_tunnel() {
+  # Tunnels are cleaned up via TUNNEL_PIDS in the EXIT trap.
+  # This is a no-op placeholder — the trap handles cleanup.
+  :
+}
+
 # --- Log directory for parallel build output ---
 BUILD_LOG_DIR=$(mktemp -d)
-trap "rm -rf $BUILD_LOG_DIR" EXIT
+trap "rm -rf $BUILD_LOG_DIR; cleanup_tunnels" EXIT
+
+# --- Group status tracking ---
+STATUS_A="enabled"
+STATUS_B="enabled"
+STATUS_C="enabled"
+STATUS_D="enabled"
+
+# ============================================================
+# VM READINESS CHECK
+# ============================================================
+
+echo "==> Checking VM readiness..."
+
+if ! ensure_vm_ready "$LINUX_ARM64_HOST"; then
+  echo "  WARNING: Skipping Group B (Linux RPM arm64)"
+  STATUS_B="skipped"
+fi
+
+if ! ensure_vm_ready "$LINUX_X64_HOST"; then
+  echo "  WARNING: Skipping Group C (Linux RPM x64)"
+  STATUS_C="skipped"
+fi
+
+if ! ensure_vm_ready "$WIN_HOST"; then
+  echo "  WARNING: Skipping Group D (Windows)"
+  STATUS_D="skipped"
+fi
+
+echo ""
 
 # ============================================================
 # PARALLEL BUILD GROUPS
 # ============================================================
-# Group B/C/D (SSH) start in background immediately.
+# Group B/C/D (SSH) start in background if their VM is ready.
 # Group A (local) runs in foreground.
 # All groups sync before distribution.
 # ============================================================
 
 echo "==> Starting parallel builds..."
 echo "    Group A: macOS + Linux deb/AppImage (local, foreground)"
-echo "    Group B: Linux RPM arm64 (SSH to ${LINUX_ARM64_HOST}, background)"
-echo "    Group C: Linux RPM x64 (SSH to ${LINUX_X64_HOST}, background)"
-echo "    Group D: Windows arm64+x64 (SSH to ${WIN_HOST}, background)"
+echo "    Group B: Linux RPM arm64 (SSH to ${LINUX_ARM64_HOST}) — ${STATUS_B}"
+echo "    Group C: Linux RPM x64 (SSH to ${LINUX_X64_HOST}) — ${STATUS_C}"
+echo "    Group D: Windows arm64+x64 (SSH to ${WIN_HOST}) — ${STATUS_D}"
 echo ""
 
 # --- Group B: Linux RPM arm64 (background) ---
+PID_B=""
+if [ "$STATUS_B" = "enabled" ]; then
 (
   set -euo pipefail
   NVM_PREFIX="source ~/.nvm/nvm.sh 2>/dev/null;"
@@ -140,8 +342,11 @@ echo ""
   echo "[B] Done — RPM arm64 complete"
 ) > "$BUILD_LOG_DIR/group-b.log" 2>&1 &
 PID_B=$!
+fi
 
 # --- Group C: Linux RPM x64 (background) ---
+PID_C=""
+if [ "$STATUS_C" = "enabled" ]; then
 (
   set -euo pipefail
   NVM_PREFIX="source ~/.nvm/nvm.sh 2>/dev/null;"
@@ -165,8 +370,11 @@ PID_B=$!
   echo "[C] Done — RPM x64 complete"
 ) > "$BUILD_LOG_DIR/group-c.log" 2>&1 &
 PID_C=$!
+fi
 
 # --- Group D: Windows (background) ---
+PID_D=""
+if [ "$STATUS_D" = "enabled" ]; then
 (
   set -euo pipefail
   echo "[D] Syncing project to Windows VM..."
@@ -194,6 +402,7 @@ PID_C=$!
   echo "[D] Done — Windows complete"
 ) > "$BUILD_LOG_DIR/group-d.log" 2>&1 &
 PID_D=$!
+fi
 
 # --- Group A: macOS + Linux deb/AppImage (foreground) ---
 echo "[A] Building renderer + main + preload..."
@@ -237,6 +446,7 @@ for file in dist/Ternity-Electron-${VERSION}-*.AppImage dist/Ternity-Electron-${
 done
 
 echo "[A] Done — macOS + Linux deb/AppImage complete"
+STATUS_A="succeeded"
 echo ""
 
 # ============================================================
@@ -244,24 +454,32 @@ echo ""
 # ============================================================
 
 echo "==> Waiting for background builds..."
-FAILED=false
 
-for GROUP_INFO in "B:$PID_B:group-b:RPM arm64" "C:$PID_C:group-c:RPM x64" "D:$PID_D:group-d:Windows"; do
+for GROUP_INFO in "B:${PID_B}:group-b:RPM arm64:STATUS_B" "C:${PID_C}:group-c:RPM x64:STATUS_C" "D:${PID_D}:group-d:Windows:STATUS_D"; do
   GROUP_LABEL="${GROUP_INFO%%:*}"
   REST="${GROUP_INFO#*:}"
   GROUP_PID="${REST%%:*}"
   REST="${REST#*:}"
   GROUP_LOG="${REST%%:*}"
-  GROUP_DESC="${REST#*:}"
+  REST="${REST#*:}"
+  GROUP_DESC="${REST%%:*}"
+  STATUS_VAR="${REST#*:}"
+
+  CURRENT_STATUS="${!STATUS_VAR}"
+  if [ "$CURRENT_STATUS" = "skipped" ]; then
+    echo "  [${GROUP_LABEL}] ${GROUP_DESC} — SKIPPED"
+    continue
+  fi
 
   if wait "$GROUP_PID"; then
     echo "  [${GROUP_LABEL}] ${GROUP_DESC} — OK"
+    eval "$STATUS_VAR=succeeded"
   else
     echo "  [${GROUP_LABEL}] ${GROUP_DESC} — FAILED"
     echo "  --- Log (${GROUP_LOG}) ---"
     cat "$BUILD_LOG_DIR/${GROUP_LOG}.log"
     echo "  --- End log ---"
-    FAILED=true
+    eval "$STATUS_VAR=failed"
   fi
 done
 
@@ -276,16 +494,33 @@ for log in "$BUILD_LOG_DIR"/group-*.log; do
   echo ""
 done
 
-if [ "$FAILED" = true ]; then
-  echo "Error: one or more background builds failed. Aborting." >&2
-  exit 1
-fi
-
 # ============================================================
 # COLLECT ARTIFACTS
 # ============================================================
 
-ARTIFACTS=()
+# Map artifact filename pattern → source group
+artifact_group() {
+  local name="$1"
+  case "$name" in
+    *.dmg|*.AppImage|*.deb) echo "A" ;;
+    *arm64.rpm)             echo "B" ;;
+    *x64.rpm)               echo "C" ;;
+    *.exe)                  echo "D" ;;
+    *)                      echo "A" ;;
+  esac
+}
+
+# Map group letter → status variable value
+group_status() {
+  case "$1" in
+    A) echo "$STATUS_A" ;;
+    B) echo "$STATUS_B" ;;
+    C) echo "$STATUS_C" ;;
+    D) echo "$STATUS_D" ;;
+  esac
+}
+
+ALL_ARTIFACTS=()
 for file in \
   "dist/Ternity-Electron-${VERSION}-arm64.dmg" \
   "dist/Ternity-Electron-${VERSION}-x64.dmg" \
@@ -297,94 +532,94 @@ for file in \
   "dist/Ternity-Electron-${VERSION}-x64.rpm" \
   "dist/Ternity-Electron-${VERSION}-arm64.exe" \
   "dist/Ternity-Electron-${VERSION}-x64.exe"; do
-  ARTIFACTS+=("$file")
+  ALL_ARTIFACTS+=("$file")
 done
 
-# --- Verify all artifacts exist ---
+# --- Verify artifacts, accounting for skipped/failed groups ---
 echo ""
-echo "=== ${#ARTIFACTS[@]} artifacts ==="
-ALL_OK=true
-for a in "${ARTIFACTS[@]}"; do
+echo "=== Artifacts ==="
+DIST_ARTIFACTS=()
+HAS_FAILED=false
+for a in "${ALL_ARTIFACTS[@]}"; do
+  BASENAME=$(basename "$a")
+  GROUP=$(artifact_group "$BASENAME")
+  GSTATUS=$(group_status "$GROUP")
+
   if [ -f "$a" ]; then
     echo "  $(basename "$a")  ($(du -sh "$a" | cut -f1))"
+    DIST_ARTIFACTS+=("$a")
+  elif [ "$GSTATUS" = "skipped" ]; then
+    echo "  SKIPPED: $(basename "$a")  (Group $GROUP skipped)"
+  elif [ "$GSTATUS" = "failed" ]; then
+    echo "  FAILED:  $(basename "$a")  (Group $GROUP failed)"
+    HAS_FAILED=true
   else
     echo "  MISSING: $(basename "$a")"
-    ALL_OK=false
+    HAS_FAILED=true
   fi
 done
 
-if [ "$ALL_OK" = false ]; then
+echo ""
+echo "  Available: ${#DIST_ARTIFACTS[@]} / ${#ALL_ARTIFACTS[@]}"
+
+if [ "$HAS_FAILED" = true ]; then
   echo ""
-  echo "Error: some artifacts are missing. Aborting distribution." >&2
+  echo "Error: one or more build groups failed. Aborting distribution." >&2
   exit 1
 fi
 
-# --- Distribute ---
+if [ ${#DIST_ARTIFACTS[@]} -eq 0 ]; then
+  echo ""
+  echo "Error: no artifacts to distribute." >&2
+  exit 1
+fi
+
+# ============================================================
+# DISTRIBUTE
+# ============================================================
+
 echo ""
 for ENV in "${ENVS[@]}"; do
   echo "=== Distributing to $ENV ==="
-  for a in "${ARTIFACTS[@]}"; do
+
+  if ! open_drive_tunnel "$ENV"; then
+    echo "  ERROR: Failed to open tunnel for $ENV — skipping"
+    continue
+  fi
+
+  for a in "${DIST_ARTIFACTS[@]}"; do
     echo "  -> $(basename "$a")"
-    "$SCRIPT_DIR/distribute.sh" "$a" "$ENV"
+    DRIVE_UPLOAD_URL="$DRIVE_UPLOAD_URL" "$SCRIPT_DIR/distribute.sh" "$a" "$ENV"
     echo ""
   done
-done
 
-# --- Push release notes ---
-VPS_HOST="${DRIVE_VPS_HOST:-89.167.28.70}"
-VPS_USER="${DRIVE_VPS_USER:-deploy}"
-
-if [ -n "$NOTES" ]; then
-  echo "=== Pushing release notes (v${VERSION}) ==="
-  for ENV in "${ENVS[@]}"; do
-    case "$ENV" in
-      local)
-        DRIVE_URL="http://localhost:3020"
-        API_KEY="${DRIVE_LOCAL_API_KEY:-}"
-        ;;
-      dev)
-        CONTAINER_IP=$(ssh "${VPS_USER}@${VPS_HOST}" \
-          "docker inspect --format='{{range .NetworkSettings.Networks}}{{.IPAddress}}{{\"\\n\"}}{{end}}' ternity-drive-dev" \
-          | grep -oE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
-        DRIVE_URL="http://${CONTAINER_IP}:3020"
-        API_KEY="${DRIVE_DEV_API_KEY:-}"
-        ;;
-      prod)
-        CONTAINER_IP=$(ssh "${VPS_USER}@${VPS_HOST}" \
-          "docker inspect --format='{{range .NetworkSettings.Networks}}{{.IPAddress}}{{\"\\n\"}}{{end}}' ternity-drive-prod" \
-          | grep -oE '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
-        DRIVE_URL="http://${CONTAINER_IP}:3020"
-        API_KEY="${DRIVE_PROD_API_KEY:-}"
-        ;;
-    esac
-
-    echo -n "  $ENV: "
-    if [ "$ENV" = "local" ]; then
-      HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
-        -X PUT "${DRIVE_URL}/api/releases/${VERSION}/notes" \
-        -H "Authorization: Bearer $API_KEY" \
-        -H "Content-Type: text/markdown" \
-        -d "$NOTES")
-    else
-      HTTP_CODE=$(ssh "${VPS_USER}@${VPS_HOST}" \
-        "curl -s -o /dev/null -w '%{http_code}' \
-        -X PUT '${DRIVE_URL}/api/releases/${VERSION}/notes' \
-        -H 'Authorization: Bearer $API_KEY' \
-        -H 'Content-Type: text/markdown' \
-        -d '$(echo "$NOTES" | sed "s/'/'\\\\''/g")'")
-    fi
+  # --- Push release notes through the same tunnel ---
+  if [ -n "$NOTES" ]; then
+    echo "  Release notes (v${VERSION})..."
+    HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+      -X PUT "${DRIVE_UPLOAD_URL}/api/releases/${VERSION}/notes" \
+      -H "Authorization: Bearer $DRIVE_API_KEY" \
+      -H "Content-Type: text/markdown" \
+      -d "$NOTES")
 
     if [ "$HTTP_CODE" = "200" ]; then
-      echo "OK"
+      echo "  Release notes: OK"
     else
-      echo "FAILED (HTTP $HTTP_CODE)"
+      echo "  Release notes: FAILED (HTTP $HTTP_CODE)"
     fi
-  done
+  fi
+
+  close_drive_tunnel
   echo ""
-fi
+done
+
+# ============================================================
+# SUMMARY
+# ============================================================
 
 echo "=== Done ==="
 echo "  Version:      v${VERSION}"
-echo "  Artifacts:    ${#ARTIFACTS[@]}"
+echo "  Artifacts:    ${#DIST_ARTIFACTS[@]} / ${#ALL_ARTIFACTS[@]}"
+echo "  Groups:       A=$STATUS_A  B=$STATUS_B  C=$STATUS_C  D=$STATUS_D"
 echo "  Notes:        $([ -n "$NOTES" ] && echo "pushed" || echo "none")"
 echo "  Environments: ${ENVS[*]}"

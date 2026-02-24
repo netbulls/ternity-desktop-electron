@@ -8,6 +8,9 @@
 # For dev/prod, opens a temporary SSH tunnel through the VPS to reach the
 # Drive container's internal port (not exposed publicly via Caddy).
 #
+# If DRIVE_UPLOAD_URL is set (e.g., by release.sh), uses it directly
+# instead of opening a new tunnel — enables persistent tunnel reuse.
+#
 # Requires env vars from .env.signing:
 #   DRIVE_{LOCAL|DEV|PROD}_API_KEY
 #   DRIVE_VPS_HOST (for dev/prod)
@@ -86,7 +89,11 @@ echo "  File:   $FILENAME ($FILESIZE)"
 
 # ── SSH tunnel (dev/prod only) ────────────────────────────────────────────────
 
-if [ "$ENV" = "dev" ] || [ "$ENV" = "prod" ]; then
+if [ -n "${DRIVE_UPLOAD_URL:-}" ]; then
+  # Persistent tunnel provided by caller (e.g., release.sh) — reuse it
+  UPLOAD_URL="$DRIVE_UPLOAD_URL"
+  echo "  Using existing tunnel: $UPLOAD_URL"
+elif [ "$ENV" = "dev" ] || [ "$ENV" = "prod" ]; then
   echo "  Opening SSH tunnel → $VPS_HOST ($CONTAINER:3020 via port $TUNNEL_PORT)..."
 
   # Resolve the container's bridge IP on the VPS
