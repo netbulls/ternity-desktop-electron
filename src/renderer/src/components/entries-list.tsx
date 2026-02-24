@@ -238,15 +238,21 @@ export function EntriesList({
 function DayHeader({ label, duration }: { label: string; duration: string }) {
   return (
     <div className="sticky top-0" style={{ zIndex: 50 }}>
-      {/* Frosted layer with gradual mask */}
+      {/* Solid zone — blur + opaque background */}
       <div
-        className="absolute inset-0"
+        className="absolute top-0 left-0 right-0"
         style={{
-          background:
-            'linear-gradient(to bottom, hsl(var(--card) / 0.95) 0%, hsl(var(--card) / 0.05) 100%)',
+          bottom: scaled(16),
+          background: 'hsl(var(--card))',
           backdropFilter: 'blur(12px)',
-          maskImage: 'linear-gradient(to bottom, black 30%, transparent 100%)',
-          WebkitMaskImage: 'linear-gradient(to bottom, black 30%, transparent 100%)',
+        }}
+      />
+      {/* Fade zone — color only, no blur */}
+      <div
+        className="absolute left-0 right-0 bottom-0"
+        style={{
+          height: scaled(16),
+          background: `linear-gradient(to top, transparent 0%, hsl(var(--card)) 100%)`,
         }}
       />
       {/* Content — unaffected by mask */}

@@ -10,6 +10,7 @@
 ### Changed
 - Move non-prod environment indicator from header strip to footer — shows env pill + version alongside "Open Ternity" link
 - Auth browser pages now show "Electron" label, proper favicon, and correct character encoding
+- Dim day headers and footer overlay — more opaque solid zone with consistent scaled fade distance
 
 ### Fixed
 - Sticky day headers overlay instead of pushing previous header out when scrolling

@@ -669,20 +669,27 @@ export function LiquidGlassLayout({
             className="pointer-events-none absolute bottom-0 left-0 right-0"
             style={{ zIndex: 50 }}
           >
-            {/* Frosted layer with gradual mask */}
+            {/* Solid zone — blur + opaque background */}
             <div
-              className="absolute inset-0"
+              className="absolute bottom-0 left-0 right-0"
               style={{
-                background: 'linear-gradient(to top, hsl(var(--card) / 0.95) 0%, hsl(var(--card) / 0.05) 100%)',
+                top: scaled(16),
+                background: 'hsl(var(--card))',
                 backdropFilter: 'blur(12px)',
-                maskImage: 'linear-gradient(to top, black 30%, transparent 100%)',
-                WebkitMaskImage: 'linear-gradient(to top, black 30%, transparent 100%)',
+              }}
+            />
+            {/* Fade zone — color only, no blur */}
+            <div
+              className="absolute left-0 right-0 top-0"
+              style={{
+                height: scaled(16),
+                background: `linear-gradient(to bottom, transparent 0%, hsl(var(--card)) 100%)`,
               }}
             />
             {/* Button + env info — unaffected by mask */}
             <div
               className={`relative flex ${environment === 'prod' ? 'items-center justify-center' : 'items-baseline justify-between'}`}
-              style={{ padding: `${scaled(12)} ${scaled(14)} ${scaled(8)}` }}
+              style={{ padding: `${scaled(16)} ${scaled(14)} ${scaled(4)}` }}
             >
               <button
                 className="pointer-events-auto flex cursor-pointer items-center text-muted-foreground transition-colors hover:text-primary"
