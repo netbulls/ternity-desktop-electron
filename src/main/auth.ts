@@ -511,6 +511,30 @@ export async function signIn(envId: EnvironmentId): Promise<SignInResult> {
   }
 
   const env = ENVIRONMENTS[envId];
+
+  // Local env uses stub auth — no OIDC, API accepts any request (AUTH_MODE=stub)
+  if (envId === 'local') {
+    try {
+      // Store a stub token so getAccessToken() returns something
+      const stubToken: TokenSet = {
+        access_token: 'stub-local',
+        expires_at: Math.floor(Date.now() / 1000) + 365 * 24 * 60 * 60, // 1 year
+      };
+
+      // Fetch real user profile from local API (stub auth auto-picks a user)
+      const user = await fetchApiProfile(env.apiBaseUrl, stubToken.access_token);
+      if (user) stubToken.userinfo = user;
+
+      storeTokens(envId, stubToken);
+      log.info('Stub sign-in complete for local, user:', user?.name ?? 'unknown');
+      return { success: true, isAuthenticated: true, user };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      log.error('Local stub sign-in failed:', message);
+      return { success: false, error: `Local API not reachable: ${message}` };
+    }
+  }
+
   if (!env.logtoAppId) {
     return { success: false, error: `No Logto App ID configured for ${envId} environment` };
   }
