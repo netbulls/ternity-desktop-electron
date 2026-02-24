@@ -1,0 +1,174 @@
+{
+  "user": {
+    "userId": "demo-user-001",
+    "displayName": "Demo User",
+    "email": "demo@ternity.xyz"
+  },
+  "projects": [
+    {
+      "id": "proj-001",
+      "name": "Website Redesign",
+      "color": "#3b82f6",
+      "clientName": "Acme Corp"
+    },
+    {
+      "id": "proj-002",
+      "name": "Mobile App",
+      "color": "#8b5cf6",
+      "clientName": "Acme Corp"
+    },
+    {
+      "id": "proj-003",
+      "name": "API Integration",
+      "color": "#10b981",
+      "clientName": "Globex Inc"
+    },
+    {
+      "id": "proj-004",
+      "name": "Brand Guidelines",
+      "color": "#f59e0b",
+      "clientName": "Initech"
+    },
+    {
+      "id": "proj-005",
+      "name": "Internal Tools",
+      "color": "#ef4444",
+      "clientName": null
+    }
+  ],
+  "entries": [
+    {
+      "dayOffset": 0,
+      "timeOfDay": "09:15",
+      "durationMinutes": 45,
+      "description": "Review pull request #142",
+      "projectId": "proj-001"
+    },
+    {
+      "dayOffset": 0,
+      "timeOfDay": "10:30",
+      "durationMinutes": 120,
+      "description": "Implement landing page hero section",
+      "projectId": "proj-001"
+    },
+    {
+      "dayOffset": 0,
+      "timeOfDay": "14:00",
+      "durationMinutes": 90,
+      "description": "Fix navigation menu on mobile",
+      "projectId": "proj-002"
+    },
+    {
+      "dayOffset": -1,
+      "timeOfDay": "08:45",
+      "durationMinutes": 60,
+      "description": "Sprint planning meeting",
+      "projectId": "proj-001"
+    },
+    {
+      "dayOffset": -1,
+      "timeOfDay": "10:00",
+      "durationMinutes": 150,
+      "description": "Build user authentication flow",
+      "projectId": "proj-002"
+    },
+    {
+      "dayOffset": -1,
+      "timeOfDay": "14:30",
+      "durationMinutes": 75,
+      "description": "Write API documentation",
+      "projectId": "proj-003"
+    },
+    {
+      "dayOffset": -2,
+      "timeOfDay": "09:00",
+      "durationMinutes": 180,
+      "description": "Set up REST endpoints for orders",
+      "projectId": "proj-003"
+    },
+    {
+      "dayOffset": -2,
+      "timeOfDay": "14:00",
+      "durationMinutes": 60,
+      "description": "Design review with client",
+      "projectId": "proj-004"
+    },
+    {
+      "dayOffset": -2,
+      "timeOfDay": "15:30",
+      "durationMinutes": 45,
+      "description": "Update color palette spec",
+      "projectId": "proj-004"
+    },
+    {
+      "dayOffset": -3,
+      "timeOfDay": "09:30",
+      "durationMinutes": 90,
+      "description": "Refactor database queries",
+      "projectId": "proj-005"
+    },
+    {
+      "dayOffset": -3,
+      "timeOfDay": "11:30",
+      "durationMinutes": 120,
+      "description": "Implement webhook handler",
+      "projectId": "proj-003"
+    },
+    {
+      "dayOffset": -3,
+      "timeOfDay": "15:00",
+      "durationMinutes": 60,
+      "description": "Code review session",
+      "projectId": "proj-001"
+    },
+    {
+      "dayOffset": -4,
+      "timeOfDay": "08:30",
+      "durationMinutes": 45,
+      "description": "Daily standup + backlog grooming",
+      "projectId": "proj-002"
+    },
+    {
+      "dayOffset": -4,
+      "timeOfDay": "10:00",
+      "durationMinutes": 180,
+      "description": "Build push notification service",
+      "projectId": "proj-002"
+    },
+    {
+      "dayOffset": -5,
+      "timeOfDay": "09:00",
+      "durationMinutes": 120,
+      "description": "Set up CI/CD pipeline",
+      "projectId": "proj-005"
+    },
+    {
+      "dayOffset": -5,
+      "timeOfDay": "13:00",
+      "durationMinutes": 90,
+      "description": "Create typography scale",
+      "projectId": "proj-004"
+    },
+    {
+      "dayOffset": -5,
+      "timeOfDay": "15:30",
+      "durationMinutes": 60,
+      "description": "Integrate payment gateway",
+      "projectId": "proj-003"
+    },
+    {
+      "dayOffset": -6,
+      "timeOfDay": "09:15",
+      "durationMinutes": 75,
+      "description": "Fix responsive layout issues",
+      "projectId": "proj-001"
+    },
+    {
+      "dayOffset": -6,
+      "timeOfDay": "11:00",
+      "durationMinutes": 135,
+      "description": "Implement search functionality",
+      "projectId": "proj-005"
+    }
+  ]
+}
