@@ -512,8 +512,12 @@ let activeAbort: (() => void) | null = null;
 let signOutServer: Server | null = null;
 
 export async function signIn(envId: EnvironmentId): Promise<SignInResult> {
+  // Cancel any existing sign-in attempt before starting a new one
   if (activeSignIn) {
-    return { success: false, error: 'Sign-in already in progress' };
+    log.info('Cancelling previous sign-in before starting new one');
+    abortSignIn();
+    // Wait for the previous promise to settle
+    await activeSignIn.catch(() => {});
   }
 
   // Close sign-out server if still running (shares the same port)
