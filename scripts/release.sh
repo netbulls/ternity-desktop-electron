@@ -204,7 +204,7 @@ ensure_vm_ready() {
 TUNNEL_PIDS=()
 
 cleanup_tunnels() {
-  for pid in "${TUNNEL_PIDS[@]}"; do
+  for pid in "${TUNNEL_PIDS[@]+"${TUNNEL_PIDS[@]}"}"; do
     kill "$pid" 2>/dev/null || true
   done
 }
