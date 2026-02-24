@@ -18,6 +18,7 @@
 - Dim day headers and footer overlay — more opaque solid zone with consistent scaled fade distance
 
 ### Fixed
+- Fix callback server port not released after sign-in — browser keep-alive held port, blocking subsequent sign-in on different environment
 - Fix sign-in getting stuck after failed or cancelled attempt — abort now immediately rejects the callback promise
 - Increase OAuth callback server timeout from 2 to 5 minutes to prevent premature timeout on slower auth flows
 - Sticky day headers overlay instead of pushing previous header out when scrolling

@@ -298,6 +298,7 @@ function startCallbackServer(): Promise<{ code: string; close: () => void }> {
       clearTimeout(timeout);
       activeAbort = null;
       if (server) {
+        server.closeAllConnections();
         server.close();
         server = null;
       }
@@ -344,7 +345,7 @@ function startCallbackServer(): Promise<{ code: string; close: () => void }> {
         return;
       }
 
-      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', Connection: 'close' });
       res.end(SUCCESS_HTML);
       resolve({ code, close: cleanup });
     });
