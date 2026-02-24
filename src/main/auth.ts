@@ -531,6 +531,9 @@ export async function signIn(envId: EnvironmentId): Promise<SignInResult> {
       const callbackPromise = startCallbackServer();
 
       // 4. Build auth URL and open in system browser
+      //    state param includes a random nonce so each attempt is a unique URL
+      //    (prevents browsers from deduplicating to an already-open tab)
+      const state = randomBytes(16).toString('hex');
       const authParams = new URLSearchParams({
         client_id: env.logtoAppId,
         redirect_uri: LOGTO_REDIRECT_URI,
@@ -540,6 +543,7 @@ export async function signIn(envId: EnvironmentId): Promise<SignInResult> {
         code_challenge_method: 'S256',
         resource: LOGTO_API_RESOURCE,
         prompt: 'login consent',
+        state,
       });
 
       const authUrl = `${oidc.authorization_endpoint}?${authParams.toString()}`;

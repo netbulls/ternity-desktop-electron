@@ -90,6 +90,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (result.success) {
           setIsAuthenticated(true);
           setUser(result.user ?? null);
+        } else if (result.error) {
+          console.warn('[auth] Sign-in failed:', result.error);
         }
       })
       .finally(() => {
