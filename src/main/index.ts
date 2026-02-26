@@ -17,6 +17,7 @@ import { createLogger, getLogPath } from './logger';
 import {
   signIn,
   signOut,
+  clearTokens,
   getAuthState,
   getAccessToken,
   abortSignIn,
@@ -337,7 +338,7 @@ function createTray(): void {
       },
     },
     {
-      label: 'Stay on Top',
+      label: 'Keep on Top',
       type: 'checkbox' as const,
       checked: stayOnTop,
       click: (menuItem: Electron.MenuItem) => {
@@ -475,6 +476,12 @@ app.whenReady().then(() => {
       log.info('Demo mode deactivated');
       isDemoMode = false;
       resetDemo();
+      return;
+    }
+    if (envId === 'local') {
+      log.info('Local stub sign-out — clearing tokens only');
+      clearTokens(envId as EnvironmentId);
+      popup?.hide();
       return;
     }
     const { signOutPageUrl } = await signOut(envId as EnvironmentId);

@@ -270,13 +270,13 @@ export function SettingsContent({
           </span>
         </div>
 
-        {/* Stay on Top */}
+        {/* Keep on Top */}
         <div
           className="flex cursor-pointer items-center justify-between border-b border-border/50"
           style={{ padding: `${scaled(7)} ${scaled(10)}` }}
           onClick={toggleStayOnTop}
         >
-          <span className="text-muted-foreground">Stay on Top</span>
+          <span className="text-muted-foreground">Keep on Top</span>
           <span
             className={`rounded-full transition-colors ${
               stayOnTop ? 'bg-primary' : 'bg-muted-foreground/30'

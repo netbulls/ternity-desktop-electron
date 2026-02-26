@@ -127,7 +127,7 @@ function loadTokens(envId: EnvironmentId): TokenSet | null {
   }
 }
 
-function clearTokens(envId: EnvironmentId): void {
+export function clearTokens(envId: EnvironmentId): void {
   const config = readConfig();
   const auth = config.auth as Record<string, unknown> | undefined;
   if (auth) {
