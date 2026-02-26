@@ -320,6 +320,8 @@ function createTray(): void {
   tray.on('double-click', togglePopup);
 
   const contextMenu = Menu.buildFromTemplate([
+    { label: 'Ternity Electron', enabled: false },
+    { type: 'separator' as const },
     ...(isLinux
       ? [
           { label: 'Open', click: () => showPopup() } as Electron.MenuItemConstructorOptions,
@@ -356,8 +358,8 @@ function createTray(): void {
     tray.setContextMenu(contextMenu);
   } else {
     tray.on('right-click', () => {
-      contextMenu.items[0].checked = app.getLoginItemSettings().openAtLogin;
-      contextMenu.items[1].checked = stayOnTop;
+      contextMenu.items[2].checked = app.getLoginItemSettings().openAtLogin;
+      contextMenu.items[3].checked = stayOnTop;
       tray?.popUpContextMenu(contextMenu);
     });
   }
