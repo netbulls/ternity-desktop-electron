@@ -24,6 +24,7 @@ export function SettingsContent({
   const data = useOptionalData();
   const [startAtLogin, setStartAtLogin] = useState(false);
   const [rememberPosition, setRememberPosition] = useState(false);
+  const [stayOnTop, setStayOnTopState] = useState(false);
   const [defaultProjectId, setDefaultProjectId] = useState<string | null>(
     () => getLocalPreferences().defaultProjectId ?? getCachedDefaultProjectId(),
   );
@@ -37,6 +38,7 @@ export function SettingsContent({
   useEffect(() => {
     window.electronAPI?.getLoginItem().then(setStartAtLogin);
     window.electronAPI?.getRememberPosition().then(setRememberPosition);
+    window.electronAPI?.getStayOnTop().then(setStayOnTopState);
     window.dispatchEvent(new Event('settings-opened'));
   }, []);
 
@@ -68,6 +70,12 @@ export function SettingsContent({
     const next = !rememberPosition;
     setRememberPosition(next);
     window.electronAPI?.setRememberPosition(next);
+  };
+
+  const toggleStayOnTop = () => {
+    const next = !stayOnTop;
+    setStayOnTopState(next);
+    window.electronAPI?.setStayOnTop(next);
   };
 
   const toggleConfirmSwitch = () => {
@@ -257,6 +265,31 @@ export function SettingsContent({
                 height: scaled(12),
                 top: scaled(2),
                 left: rememberPosition ? scaled(14) : scaled(2),
+              }}
+            />
+          </span>
+        </div>
+
+        {/* Stay on Top */}
+        <div
+          className="flex cursor-pointer items-center justify-between border-b border-border/50"
+          style={{ padding: `${scaled(7)} ${scaled(10)}` }}
+          onClick={toggleStayOnTop}
+        >
+          <span className="text-muted-foreground">Stay on Top</span>
+          <span
+            className={`rounded-full transition-colors ${
+              stayOnTop ? 'bg-primary' : 'bg-muted-foreground/30'
+            }`}
+            style={{ width: scaled(28), height: scaled(16), position: 'relative' }}
+          >
+            <span
+              className="absolute rounded-full bg-white transition-all"
+              style={{
+                width: scaled(12),
+                height: scaled(12),
+                top: scaled(2),
+                left: stayOnTop ? scaled(14) : scaled(2),
               }}
             />
           </span>

@@ -31,6 +31,7 @@ const isLinux = process.platform === 'linux';
 let tray: Tray | null = null;
 let popup: BrowserWindow | null = null;
 let isDemoMode = false;
+let stayOnTop = false;
 
 // Remembered window position (cross-platform; also serves as Linux fallback since tray.getBounds() returns zeros)
 let savedPosition: { x: number; y: number } | null = null;
@@ -140,6 +141,7 @@ function createPopup(): BrowserWindow {
   win.on('blur', () => {
     if (Date.now() < blurSuppressedUntil) return;
     if (isDragging) return;
+    if (stayOnTop) return;
     if (blurTimer) clearTimeout(blurTimer);
 
     if (process.platform === 'darwin') {
@@ -182,7 +184,7 @@ function createPopup(): BrowserWindow {
     suppressEscape = suppressed;
   });
   win.webContents.on('before-input-event', (_event, input) => {
-    if (input.key === 'Escape' && input.type === 'keyDown' && !suppressEscape) {
+    if (input.key === 'Escape' && input.type === 'keyDown' && !suppressEscape && !stayOnTop) {
       win.hide();
     }
   });
@@ -332,6 +334,17 @@ function createTray(): void {
         app.setLoginItemSettings({ openAtLogin: menuItem.checked });
       },
     },
+    {
+      label: 'Stay on Top',
+      type: 'checkbox' as const,
+      checked: stayOnTop,
+      click: (menuItem: Electron.MenuItem) => {
+        stayOnTop = menuItem.checked;
+        const config = readConfig();
+        config.stayOnTop = menuItem.checked;
+        writeConfig(config);
+      },
+    },
     { type: 'separator' as const },
     {
       label: 'Quit',
@@ -344,6 +357,7 @@ function createTray(): void {
   } else {
     tray.on('right-click', () => {
       contextMenu.items[0].checked = app.getLoginItemSettings().openAtLogin;
+      contextMenu.items[1].checked = stayOnTop;
       tray?.popUpContextMenu(contextMenu);
     });
   }
@@ -359,6 +373,7 @@ app.whenReady().then(() => {
 
   loadSavedPosition();
   popupHeight = loadSavedHeight();
+  stayOnTop = readConfig().stayOnTop === true;
   createTray();
   popup = createPopup();
 
@@ -503,6 +518,16 @@ app.whenReady().then(() => {
       delete config.windowY;
       savedPosition = null;
     }
+    writeConfig(config);
+  });
+
+  // IPC: stay on top toggle
+  ipcMain.handle('app:get-stay-on-top', () => stayOnTop);
+
+  ipcMain.handle('app:set-stay-on-top', (_event, enabled: boolean) => {
+    stayOnTop = enabled;
+    const config = readConfig();
+    config.stayOnTop = enabled;
     writeConfig(config);
   });
 

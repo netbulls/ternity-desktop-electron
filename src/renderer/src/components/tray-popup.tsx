@@ -155,11 +155,12 @@ function TimerView({ onSettingsClick }: { onSettingsClick: () => void }) {
       lastSyncedEntryIdRef.current = null;
       return;
     }
-    // Only sync when the entry changes (not on every poll)
-    if (entry.id === lastSyncedEntryIdRef.current) return;
-    lastSyncedEntryIdRef.current = entry.id;
-    setDescription(entry.description || '');
-    // Find matching project
+    // Sync description only when entry changes (not on every poll)
+    if (entry.id !== lastSyncedEntryIdRef.current) {
+      lastSyncedEntryIdRef.current = entry.id;
+      setDescription(entry.description || '');
+    }
+    // Match project — always re-run so late-loading projects get picked up
     const matchedProject = entry.projectId
       ? (data.projects.find((p) => p.id === entry.projectId) ?? null)
       : null;

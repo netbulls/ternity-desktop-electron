@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 ### Added
+- Stay on Top — tray right-click menu checkbox and settings toggle to pin popup, suppressing blur and Escape dismiss
 - Sign-in progress indicator — animated progress bar with step labels replaces static "Waiting for browser..." spinner during OIDC sign-in
 - Cross-device preferences sync — theme, scale, default project, and confirm timer switch sync via API with localStorage as instant cache
 - Confirm Timer Switch setting — toggle in settings to skip/show confirmation overlay when switching timers
@@ -18,6 +19,7 @@
 - Dim day headers and footer overlay — more opaque solid zone with consistent scaled fade distance
 
 ### Fixed
+- Fix running timer showing "No project" when projects load after timer state — race condition in sync effect
 - Fix callback server port not released after sign-in — browser keep-alive held port, blocking subsequent sign-in on different environment
 - Fix sign-in getting stuck after failed or cancelled attempt — abort now immediately rejects the callback promise
 - Increase OAuth callback server timeout from 2 to 5 minutes to prevent premature timeout on slower auth flows

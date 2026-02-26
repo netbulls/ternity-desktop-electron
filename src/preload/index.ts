@@ -35,6 +35,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getRememberPosition: () => ipcRenderer.invoke('app:get-remember-position'),
   setRememberPosition: (enabled: boolean) =>
     ipcRenderer.invoke('app:set-remember-position', enabled),
+  getStayOnTop: () => ipcRenderer.invoke('app:get-stay-on-top'),
+  setStayOnTop: (enabled: boolean) => ipcRenderer.invoke('app:set-stay-on-top', enabled),
   getLastHeight: () => ipcRenderer.invoke('app:get-last-height'),
   setSuppressEscape: (suppressed: boolean) => ipcRenderer.send('set-suppress-escape', suppressed),
 });
